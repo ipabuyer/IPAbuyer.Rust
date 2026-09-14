@@ -9,11 +9,21 @@ rust-version = "1.85"
 name = "IPAbuyer"
 path = "src/main.rs"
 
+[features]
+# 直接用 cargo 构建发布版时必须显式启用（tauri build 会自动加）：
+# cargo build --release --features custom-protocol
+custom-protocol = ["tauri/custom-protocol"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+keyring = { version = "3", features = ["windows-native"] }
+uuid = { version = "1", features = ["v4"] }
+dirs = "6"
 
 # core 业务逻辑（并入自 IPAbuyer.Core，版本对齐原 crate）
 chrono = "0.4"

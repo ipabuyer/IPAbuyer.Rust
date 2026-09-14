@@ -3,13 +3,58 @@
 //! 分层：`core`（业务核心，并入自 IPAbuyer.Core）→ `state`/`commands`/`events`
 //! （复刻原 C# 门面职责：配置存储、会话、队列/同步编排、日志缓冲、事件推送）。
 
+pub mod commands;
 pub mod core;
 pub mod events;
+pub mod resolver;
 pub mod state;
+pub mod storefront;
+
+use tauri::Manager;
+
+/// 应用标识（须与 tauri.conf.json 的 identifier 保持一致）。
+pub const IDENTIFIER: &str = "com.ipabuyer.app";
 
 /// 构建 Tauri 应用并运行。
 pub fn run() {
+    // 显示语言在 webview 脚本执行前注入，保证首帧即为偏好语言
+    let display_language = state::read_display_language(&state::config_file_path());
+    let init_script = format!(
+        "window.__IPABUYER_LANG__ = {};",
+        display_language
+            .map(|l| format!("{l:?}"))
+            .unwrap_or_else(|| "undefined".into())
+    );
+
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
+        .append_invoke_initialization_script(&init_script)
+        .setup(|app| {
+            let data_dir = app
+                .path()
+                .app_data_dir()
+                .map_err(|e| format!("解析数据目录失败: {e}"))?;
+            let state = state::AppState::new(data_dir).map_err(std::io::Error::other)?;
+            app.manage(state);
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::settings::settings_get,
+            commands::settings::settings_default_download_directory,
+            commands::settings::settings_set_country_code,
+            commands::settings::settings_set_download_directory,
+            commands::settings::settings_reset_download_directory,
+            commands::settings::settings_set_display_language,
+            commands::settings::settings_set_detailed_log,
+            commands::settings::settings_set_passphrase_rotation,
+            commands::settings::settings_get_passphrase,
+            commands::settings::settings_list_storefronts,
+            commands::auth::auth_login,
+            commands::auth::auth_verify_code,
+            commands::auth::auth_logout,
+            commands::auth::auth_info,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
