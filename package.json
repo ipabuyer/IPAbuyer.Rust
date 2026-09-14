@@ -1,0 +1,14 @@
+{
+  "name": "ipabuyer-rust",
+  "private": true,
+  "version": "2026.9.14",
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build --no-bundle",
+    "msix": "powershell -ExecutionPolicy Bypass -File scripts/make-msix.ps1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

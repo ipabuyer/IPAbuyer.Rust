@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IPAbuyer</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        display: grid;
+        place-items: center;
+        font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+        background: transparent;
+        color: #1f2430;
+        user-select: none;
+      }
+      .card {
+        text-align: center;
+      }
+      h1 {
+        font-size: 28px;
+        margin: 16px 0 8px;
+      }
+      p {
+        color: #6b7280;
+        margin: 4px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>IPAbuyer</h1>
+      <p>Tauri 2 + MSIX · Microsoft Store 兼容性测试包</p>
+      <p id="info"></p>
+    </div>
+    <script>
+      document.getElementById("info").textContent = new Date().toLocaleString();
+    </script>
+  </body>
+</html>

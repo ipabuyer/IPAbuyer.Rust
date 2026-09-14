@@ -1,0 +1,21 @@
+[package]
+name = "ipabuyer"
+version = "2026.9.14"
+description = "IPAbuyer - Tauri 2 build for Microsoft Store compatibility testing"
+edition = "2021"
+rust-version = "1.77"
+
+[[bin]]
+name = "IPAbuyer"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
