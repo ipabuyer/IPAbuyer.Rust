@@ -94,7 +94,9 @@ Set-Content -Path $BundleMapping -Encoding Ascii -Value @(
     ('"{0}" "{1}"' -f $MsixPath, $MsixName)
 )
 Write-Host "正在打包 $BundleName ..."
-& $MakeAppx bundle /f $BundleMapping /p $BundlePath /o
+# /bv 必须显式指定：缺省时 makeappx 会用当前 UTC 时间（年.月日.时分.0）生成 bundle 版本，
+# 导致商店显示的版本号与包内实际版本不一致（如 2026.9.14.0 显示为 2026.914.940.0）
+& $MakeAppx bundle /f $BundleMapping /p $BundlePath /bv $Version /o
 if ($LASTEXITCODE -ne 0) { Write-Error "makeappx bundle 失败" }
 
 Write-Host ""
