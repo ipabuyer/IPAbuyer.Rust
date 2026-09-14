@@ -4,3 +4,5 @@ msix/out/
 *.msix
 *.msixbundle
 src-tauri/gen/
+dist/
+src-tauri/binaries/
