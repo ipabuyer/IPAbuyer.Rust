@@ -24,7 +24,10 @@ const entries = [...xml.matchAll(/<data name="([^"]+)"[^>]*>\s*<value>([\s\S]*?)
 const result = {};
 for (const [, name, value] of entries) {
   const key = name.trim();
-  const text = decode(value).trim();
+  // C# string.Format 的位置占位符 {0} → i18next 插值 {{0}}
+  const text = decode(value)
+    .trim()
+    .replace(/\{(\d+)\}/g, "{{$1}}");
   if (key in result && result[key] !== text) {
     console.error(`警告: key 重复且值不同: ${key}`);
   }
