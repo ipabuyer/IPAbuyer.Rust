@@ -15,6 +15,10 @@ export default defineConfig({
   server: {
     port: 1420,
     strictPort: true,
+    // cargo 编译产物变化频繁且被文件锁占用，禁止 vite watch
+    watch: {
+      ignored: ["**/src-tauri/target/**", "**/dist/**"],
+    },
   },
   build: {
     outDir: "dist",
