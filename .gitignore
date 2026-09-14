@@ -3,3 +3,4 @@ src-tauri/target/
 msix/out/
 *.msix
 *.msixbundle
+src-tauri/gen/
