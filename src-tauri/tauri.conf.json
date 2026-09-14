@@ -4,7 +4,10 @@
   "version": "2026.9.14",
   "identifier": "com.ipabuyer.app",
   "build": {
-    "frontendDist": "../ui"
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build:web",
+    "frontendDist": "../dist"
   },
   "app": {
     "windows": [
@@ -13,7 +16,8 @@
         "width": 1024,
         "height": 768,
         "minWidth": 800,
-        "minHeight": 600
+        "minHeight": 600,
+        "decorations": false
       }
     ],
     "security": {
@@ -23,6 +27,7 @@
   "bundle": {
     "active": true,
     "targets": [],
-    "icon": ["icons/icon.ico"]
+    "icon": ["icons/icon.ico"],
+    "externalBin": ["binaries/ipatool"]
   }
 }

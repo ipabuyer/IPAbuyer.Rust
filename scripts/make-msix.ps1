@@ -51,6 +51,13 @@ New-Item -ItemType Directory -Force -Path (Join-Path $StageDir "Assets") | Out-N
 
 Copy-Item $ExePath $StageDir
 
+# ---- ipatool sidecar（tauri build 已将 externalBin 复制到 release 目录，去 triple 后缀）----
+$IpatoolPath = Join-Path $RepoRoot "src-tauri\target\$Configuration\ipatool.exe"
+if (-not (Test-Path $IpatoolPath)) {
+    Write-Error "找不到 sidecar $IpatoolPath，请先运行: powershell -File scripts/fetch-ipatool.ps1 && npm run build"
+}
+Copy-Item $IpatoolPath $StageDir
+
 # ---- 由模板生成 AppxManifest（校验版本号格式 x.y.z.w）----
 if ($Version -notmatch '^\d+\.\d+\.\d+\.\d+$') {
     Write-Error "版本号必须为 x.y.z.w 四段格式: $Version"
@@ -76,6 +83,7 @@ $PackMapping = Join-Path $OutDir "pack-mapping.txt"
 $lines = @('[Files]')
 $lines += ('"{0}" "AppxManifest.xml"' -f (Join-Path $StageDir "AppxManifest.xml"))
 $lines += ('"{0}" "IPAbuyer.exe"' -f (Join-Path $StageDir "IPAbuyer.exe"))
+$lines += ('"{0}" "ipatool.exe"' -f (Join-Path $StageDir "ipatool.exe"))
 foreach ($asset in $RequiredAssets) {
     $lines += ('"{0}" "Assets\{1}"' -f (Join-Path (Join-Path $StageDir "Assets") $asset), $asset)
 }
