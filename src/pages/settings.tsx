@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { getVersion } from "@tauri-apps/api/app";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { ExternalLink, FolderOpen, Globe, KeyRound, Languages, Loader2, RotateCcw } from "lucide-react";
+import { FolderOpen, GitBranch, Globe, Info, KeyRound, Flag, Languages, Loader2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -208,7 +208,7 @@ export function SettingsPage() {
         </SettingsCard>
 
         <SettingsCard
-          icon={Globe}
+          icon={Flag}
           header={t("Settings/Card/CountryCode.Header")}
           description={t("Settings/Card/CountryCode.Description")}
         >
@@ -289,7 +289,7 @@ export function SettingsPage() {
         )}
 
         <SettingsCard
-          icon={ExternalLink}
+          icon={Globe}
           header={t("Settings/Card/DeveloperSite.Header")}
           description={t("Settings/Card/DeveloperSite.Description")}
         >
@@ -299,7 +299,7 @@ export function SettingsPage() {
         </SettingsCard>
 
         <SettingsCard
-          icon={ExternalLink}
+          icon={GitBranch}
           header={t("Settings/Card/ProjectRepository.Header")}
           description={t("Settings/Card/ProjectRepository.Description")}
         >
@@ -308,7 +308,7 @@ export function SettingsPage() {
           </Button>
         </SettingsCard>
 
-        <SettingsCard header={t("Settings/Card/AppVersion.Header")}>{version}</SettingsCard>
+        <SettingsCard icon={Info} header={t("Settings/Card/AppVersion.Header")}>{version}</SettingsCard>
       </div>
 
       <CountryPickerDialog
