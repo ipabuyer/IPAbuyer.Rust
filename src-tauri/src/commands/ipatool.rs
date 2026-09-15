@@ -30,8 +30,7 @@ fn bundled_ipatool_path() -> Option<PathBuf> {
     path.is_file().then_some(path)
 }
 
-#[tauri::command]
-pub fn ipatool_info(state: State<'_, AppState>) -> IpatoolInfo {
+fn info(state: &AppState) -> IpatoolInfo {
     let flavor = state.config.lock().unwrap().ipatool_flavor.clone();
     let custom_path = state.config.lock().unwrap().custom_ipatool_path.clone();
     let custom_usable = flavor.eq_ignore_ascii_case(IPATOOL_FLAVOR_CUSTOM)
@@ -54,8 +53,7 @@ pub fn ipatool_info(state: State<'_, AppState>) -> IpatoolInfo {
     }
 }
 
-#[tauri::command]
-pub fn ipatool_set_flavor(state: State<'_, AppState>, flavor: String) -> Result<(), String> {
+fn set_flavor(state: &AppState, flavor: String) -> Result<(), String> {
     if flavor != IPATOOL_FLAVOR_MAIN && flavor != IPATOOL_FLAVOR_CUSTOM {
         return Err(format!("无效的 ipatool 来源: {flavor}"));
     }
@@ -63,8 +61,7 @@ pub fn ipatool_set_flavor(state: State<'_, AppState>, flavor: String) -> Result<
     Ok(())
 }
 
-#[tauri::command]
-pub fn ipatool_set_custom_path(state: State<'_, AppState>, path: String) -> Result<(), String> {
+fn set_custom_path(state: &AppState, path: String) -> Result<(), String> {
     let trimmed = path.trim().to_string();
     if !trimmed.to_lowercase().ends_with(".exe") {
         return Err("自定义 ipatool 必须是 .exe 文件".into());
@@ -80,8 +77,7 @@ pub fn ipatool_set_custom_path(state: State<'_, AppState>, path: String) -> Resu
 }
 
 /// 删除自定义插槽（只移除配置，不删除原文件），并回退到内置来源。
-#[tauri::command]
-pub fn ipatool_delete_custom(state: State<'_, AppState>) -> Result<(), String> {
+fn delete_custom(state: &AppState) -> Result<(), String> {
     state.update_config(|c| {
         c.custom_ipatool_path = None;
         c.ipatool_flavor = IPATOOL_FLAVOR_MAIN.into();
@@ -90,15 +86,39 @@ pub fn ipatool_delete_custom(state: State<'_, AppState>) -> Result<(), String> {
 }
 
 /// 导出当前生效的 ipatool.exe 到下载目录，目标文件名 `ipatool.exe`（覆盖确认由前端处理）。
-#[tauri::command]
-pub fn ipatool_export(state: State<'_, AppState>) -> Result<String, String> {
-    let source = crate::resolver::resolve_executable_path(&state);
+fn export(state: &AppState) -> Result<String, String> {
+    let source = crate::resolver::resolve_executable_path(state);
     if !source.is_file() {
         return Err("内置 ipatool.exe 不存在".into());
     }
     let target = state.config.lock().unwrap().download_directory().join("ipatool.exe");
     std::fs::copy(&source, &target).map_err(|e| format!("导出失败: {e}"))?;
     Ok(target.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+pub fn ipatool_info(state: State<'_, AppState>) -> IpatoolInfo {
+    info(&state)
+}
+
+#[tauri::command]
+pub fn ipatool_set_flavor(state: State<'_, AppState>, flavor: String) -> Result<(), String> {
+    set_flavor(&state, flavor)
+}
+
+#[tauri::command]
+pub fn ipatool_set_custom_path(state: State<'_, AppState>, path: String) -> Result<(), String> {
+    set_custom_path(&state, path)
+}
+
+#[tauri::command]
+pub fn ipatool_delete_custom(state: State<'_, AppState>) -> Result<(), String> {
+    delete_custom(&state)
+}
+
+#[tauri::command]
+pub fn ipatool_export(state: State<'_, AppState>) -> Result<String, String> {
+    export(&state)
 }
 
 /// 清空 ipatool 数据目录（`~/.ipatool/`）。
@@ -145,4 +165,105 @@ fn legacy_db_path() -> Option<PathBuf> {
             .join("LocalState")
             .join("PurchasedAppDb.db"),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::AppState;
+
+    fn temp_state(name: &str) -> AppState {
+        let dir = std::env::temp_dir().join(format!("ipabuyer-ipatool-{name}-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        AppState::new(dir).expect("temp AppState")
+    }
+
+    fn write_fake_exe(name: &str) -> PathBuf {
+        let path = std::env::temp_dir().join(name);
+        std::fs::write(&path, b"MZ").unwrap();
+        path
+    }
+
+    #[test]
+    fn set_flavor_validates_input() {
+        let state = temp_state("flavor");
+        assert!(set_flavor(&state, "weird".into()).is_err());
+        assert!(set_flavor(&state, "custom".into()).is_ok());
+        assert_eq!(state.config.lock().unwrap().ipatool_flavor, "custom");
+    }
+
+    #[test]
+    fn set_custom_path_requires_existing_exe() {
+        let state = temp_state("path");
+        assert!(set_custom_path(&state, "C:/x/not-an-exe.txt".into()).is_err());
+        assert!(set_custom_path(&state, "Z:/missing/ipatool.exe".into()).is_err());
+
+        let exe = write_fake_exe("resolver-custom-valid.exe");
+        assert!(set_custom_path(&state, exe.to_string_lossy().into_owned()).is_ok());
+        {
+            let config = state.config.lock().unwrap();
+            assert_eq!(config.ipatool_flavor, "custom");
+            assert_eq!(config.custom_ipatool_path.as_deref(), Some(exe.to_string_lossy().as_ref()));
+        }
+        let _ = std::fs::remove_file(exe);
+    }
+
+    #[test]
+    fn delete_custom_resets_flavor_to_main() {
+        let state = temp_state("delete");
+        let exe = write_fake_exe("resolver-delete.exe");
+        set_custom_path(&state, exe.to_string_lossy().into_owned()).unwrap();
+        assert!(delete_custom(&state).is_ok());
+        {
+            let config = state.config.lock().unwrap();
+            assert_eq!(config.ipatool_flavor, "main");
+            assert!(config.custom_ipatool_path.is_none());
+        }
+        let _ = std::fs::remove_file(exe);
+    }
+
+    #[test]
+    fn export_copies_active_binary_into_download_directory() {
+        let state = temp_state("export");
+        let dl_dir = std::env::temp_dir().join(format!("ipabuyer-dl-{}", std::process::id()));
+        std::fs::create_dir_all(&dl_dir).unwrap();
+        let exe = write_fake_exe("resolver-export.exe");
+        set_custom_path(&state, exe.to_string_lossy().into_owned()).unwrap();
+        state
+            .update_config(|c| c.download_directory = Some(dl_dir.to_string_lossy().into_owned()))
+            .unwrap();
+
+        let target = export(&state).expect("export");
+        assert!(target.contains("ipatool.exe"));
+        assert!(target.starts_with(dl_dir.to_string_lossy().as_ref()));
+        assert_eq!(std::fs::read(&target).unwrap(), b"MZ");
+        let _ = std::fs::remove_file(exe);
+        let _ = std::fs::remove_file(target);
+        let _ = std::fs::remove_dir(dl_dir);
+    }
+
+    #[test]
+    fn export_fails_without_source() {
+        let state = temp_state("export-missing");
+        state
+            .update_config(|c| {
+                c.ipatool_flavor = "custom".into();
+                c.custom_ipatool_path = Some("Z:/missing/ipatool.exe".into());
+            })
+            .unwrap();
+        assert!(export(&state).is_err());
+    }
+
+    #[test]
+    fn info_reflects_custom_active_path() {
+        let state = temp_state("info");
+        let exe = write_fake_exe("resolver-info.exe");
+        set_custom_path(&state, exe.to_string_lossy().into_owned()).unwrap();
+
+        let dto = info(&state);
+        assert_eq!(dto.flavor, "custom");
+        assert_eq!(dto.active_path, exe.to_string_lossy());
+        assert_eq!(dto.builtin_version, BUILTIN_IPATOOL_VERSION);
+        let _ = std::fs::remove_file(exe);
+    }
 }
