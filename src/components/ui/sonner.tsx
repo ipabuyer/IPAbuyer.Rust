@@ -7,15 +7,16 @@ import {
   OctagonXIcon,
   TriangleAlertIcon,
 } from "lucide-react"
-import { useTheme } from "next-themes"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
+import { useThemeStore } from "@/stores/theme"
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme()
+  // 主题来自后端桥接的镜像（next-themes 的 matchMedia 在 WebView2 中不随系统实时更新）
+  const system = useThemeStore((s) => s.system)
 
   return (
     <Sonner
-      theme={theme as ToasterProps["theme"]}
+      theme={system}
       className="toaster group"
       icons={{
         success: <CircleCheckIcon className="size-4" />,

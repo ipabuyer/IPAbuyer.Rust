@@ -5,6 +5,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { ThemeProvider } from "next-themes";
 import App from "./App";
 import { LogWindow } from "./components/log-window";
+import { useThemeStore } from "./stores/theme";
 import "./i18n";
 import "./index.css";
 
@@ -15,10 +16,14 @@ window.addEventListener("contextmenu", (e) => e.preventDefault());
 // 跟随系统深浅主题：WebView2 的 prefers-color-scheme 不保证随系统实时
 // 更新，由后端轮询注册表并 emit system-theme 事件桥接。挂载后延迟一拍
 // 应用初始值，避免被 next-themes 的挂载效果覆盖；此后仅事件驱动切换。
+// 除 dark 类外还写内联 color-scheme，覆盖 wry 创建窗口时按"系统模式"
+// 写入的内联值（否则浅色应用模式下滚动条等仍是深色）。
 function SystemThemeSync() {
   useEffect(() => {
     const apply = (theme: "light" | "dark") => {
       document.documentElement.classList.toggle("dark", theme === "dark");
+      document.documentElement.style.colorScheme = theme;
+      useThemeStore.getState().setSystem(theme);
     };
     const unlistenPromise = listen<"light" | "dark">("system-theme", (e) => apply(e.payload));
     const timer = setTimeout(() => {
