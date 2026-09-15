@@ -21,6 +21,8 @@ pub struct IpatoolInfo {
     pub active_path: String,
     /// 内置 ipatool.exe 是否可用（同目录存在）。
     pub builtin_available: bool,
+    /// ipatool 数据目录（~/.ipatool，清空数据的目标）。
+    pub data_directory: String,
 }
 
 fn bundled_ipatool_path() -> Option<PathBuf> {
@@ -50,6 +52,9 @@ fn info(state: &AppState) -> IpatoolInfo {
         builtin_version: BUILTIN_IPATOOL_VERSION.into(),
         active_path,
         builtin_available: bundled_ipatool_path().is_some(),
+        data_directory: dirs::home_dir()
+            .map(|h| h.join(".ipatool").to_string_lossy().into_owned())
+            .unwrap_or_else(|| "~/.ipatool".into()),
     }
 }
 

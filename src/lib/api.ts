@@ -68,6 +68,7 @@ export const api = {
       builtinVersion: string;
       activePath: string;
       builtinAvailable: boolean;
+      dataDirectory: string;
     }>("ipatool_info"),
   ipatoolSetFlavor: (flavor: string) => invoke<void>("ipatool_set_flavor", { flavor }),
   ipatoolSetCustomPath: (path: string) => invoke<void>("ipatool_set_custom_path", { path }),
