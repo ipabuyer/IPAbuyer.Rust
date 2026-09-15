@@ -43,10 +43,13 @@ export function TitleBar({ active }: { active: PageKey }) {
       className="flex h-10 shrink-0 items-center gap-1 border-b bg-sidebar pr-0 pl-2"
     >
       <SidebarTrigger />
-      <span className="ml-1 text-sm font-medium">{t("MainWindow/TitleBar.Title")}</span>
+      <span className="ml-1 text-sm font-medium" data-tauri-drag-region>
+        {t("MainWindow/TitleBar.Title")}
+      </span>
 
       {/* 居中搜索框：仅主页显示（对应 WinUI3 标题栏 AutoSuggestBox） */}
-      <div className="flex flex-1 justify-center">
+      {/* 拖动要求点击目标自身带 data-tauri-drag-region，所有非交互子区域都要补 */}
+      <div className="flex flex-1 justify-center" data-tauri-drag-region>
         {active === "main" && (
           <div className="relative w-[320px] max-w-[40%]">
             <Search className="absolute top-1/2 left-2 size-4 -translate-y-1/2 text-muted-foreground" />
