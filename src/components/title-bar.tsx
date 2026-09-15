@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useSession } from "@/stores/session";
+import { useSearch } from "@/stores/search";
 import { cn } from "@/lib/utils";
 import type { PageKey } from "@/components/app-sidebar";
 
@@ -33,6 +34,7 @@ function WindowButton({
 export function TitleBar({ active }: { active: PageKey }) {
   const { t } = useTranslation();
   const loggedIn = useSession((s) => s.loggedIn);
+  const { query, setQuery, search } = useSearch();
   const appWindow = getCurrentWindow();
 
   return (
@@ -51,6 +53,11 @@ export function TitleBar({ active }: { active: PageKey }) {
             <Input
               className="h-7 pl-8 text-sm"
               placeholder={t("MainWindow/SearchBox.PlaceholderText")}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void search();
+              }}
             />
           </div>
         )}

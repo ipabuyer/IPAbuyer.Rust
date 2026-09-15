@@ -51,3 +51,56 @@ export interface LogoutResult {
 }
 
 export type Storefront = readonly [code: string, name: string];
+
+export type PurchaseStatus = "purchased" | "not_purchased";
+
+export interface SearchResultItem {
+  bundleId: string;
+  id: string | null;
+  name: string | null;
+  developer: string | null;
+  artworkUrl: string | null;
+  price: string;
+  version: string | null;
+  purchased: string;
+}
+
+export type PurchaseOutcome =
+  | "Purchased"
+  | "AlreadyOwned"
+  | "NeedsOwnedConfirmation"
+  | "Skipped"
+  | "Failed";
+
+export interface PurchaseResult {
+  bundleId: string;
+  outcome: PurchaseOutcome;
+  detail: string | null;
+}
+
+export type QueueItemStatus = "Pending" | "Downloading" | "Success" | "Failed" | "Canceled";
+
+export interface QueueItem {
+  bundleId: string;
+  appId: string;
+  name: string;
+  developer: string;
+  version: string;
+  price: string;
+  artworkUrl: string;
+  status: QueueItemStatus;
+  lastMessage: string;
+}
+
+export interface QueueStatus {
+  running: boolean;
+  items: QueueItem[];
+}
+
+export interface LogEntry {
+  timestamp: string;
+  level: "info" | "tip" | "success" | "error" | "ipatool";
+  message: JsMessage;
+}
+
+export type QueueFilter = "all" | "not_purchased" | "purchased";

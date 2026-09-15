@@ -1,5 +1,14 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { AppConfig, AuthInfo, AuthResult, LogoutResult, Storefront } from "./types";
+import type {
+  AppConfig,
+  AuthInfo,
+  AuthResult,
+  LogoutResult,
+  PurchaseResult,
+  QueueStatus,
+  SearchResultItem,
+  Storefront,
+} from "./types";
 
 export const api = {
   // ---- 设置 ----
@@ -17,6 +26,30 @@ export const api = {
     invoke<AppConfig>("settings_set_passphrase_rotation", { enabled }),
   getPassphrase: () => invoke<string>("settings_get_passphrase"),
   listStorefronts: () => invoke<Storefront[]>("settings_list_storefronts"),
+
+  // ---- 搜索 / 购买 / 队列 / 日志 ----
+  search: (query: string) => invoke<SearchResultItem[]>("catalog_search", { query }),
+  purchase: (bundleId: string, price: string, purchased: string) =>
+    invoke<PurchaseResult>("purchase", { bundleId, price, purchased }),
+  mark: (bundleId: string, status: string) =>
+    invoke<void>("purchases_mark", { bundleId, status }),
+  unmark: (bundleId: string) => invoke<void>("purchases_unmark", { bundleId }),
+  queueAdd: (item: {
+    bundleId: string;
+    appId: string | null;
+    name: string | null;
+    developer: string | null;
+    version: string | null;
+    price: string;
+    artworkUrl: string | null;
+  }) => invoke<"Added" | "Updated" | "Requeued" | "Ignored">("queue_add", item),
+  queueStart: () => invoke<void>("queue_start"),
+  queueStatus: () => invoke<QueueStatus>("queue_status"),
+  queueCancel: () => invoke<void>("queue_cancel_current"),
+  logsSnapshot: () => {
+    return invoke<import("./types").LogEntry[]>("logs_snapshot");
+  },
+  logsClear: () => invoke<void>("logs_clear"),
 
   // ---- 认证 ----
   login: (account: string, password: string, passphrase: string) =>
