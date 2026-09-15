@@ -15,13 +15,13 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@v7
 
       - name: 安装 pnpm（读取 packageManager 字段）
-        uses: pnpm/action-setup@v6.1.0
+        uses: pnpm/action-setup@v6
 
       - name: 安装 Node.js
-        uses: actions/setup-node@v7.0.0
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -32,7 +32,7 @@ jobs:
           targets: x86_64-pc-windows-msvc,aarch64-pc-windows-msvc
 
       - name: Rust 编译缓存
-        uses: Swatinem/rust-cache@v2.9.2
+        uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
 
@@ -75,7 +75,7 @@ jobs:
           -RustTarget x86_64-pc-windows-msvc,aarch64-pc-windows-msvc
 
       - name: 发布到 GitHub Release
-        uses: ncipollo/release-action@v1.21.0
+        uses: ncipollo/release-action@v1
         with:
           artifacts: msix/out/IPAbuyer_*.msixbundle
           generateReleaseNotes: true
