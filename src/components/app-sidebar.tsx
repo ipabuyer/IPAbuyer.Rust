@@ -1,5 +1,5 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { CircleHelp, House, Package, Settings, UserRound } from "lucide-react";
+import { ArrowUpRight, CircleHelp, House, Package, Settings, UserRound } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
@@ -14,7 +14,10 @@ import {
 
 export type PageKey = "main" | "account" | "ipatool" | "settings";
 
-const FAQ_URL = "https://ipa.blazesnow.com/faq.html";
+// 指向外部网页的侧边栏项（菜单按钮右端带 ArrowUpRight 标识区分）
+const EXTERNAL_NAV = [
+  { icon: CircleHelp, label: "MainWindow/Nav/Faq.Content", url: "https://ipa.blazesnow.com/faq.html" },
+] as const;
 
 const NAV = [
   { key: "main", icon: House, label: "MainWindow/Nav/Main.Content" },
@@ -31,9 +34,9 @@ export function AppSidebar({
   onNavigate: (page: PageKey) => void;
 }) {
   const { t } = useTranslation();
-  async function openFaq() {
+  async function openExternal(url: string) {
     try {
-      await openUrl(FAQ_URL);
+      await openUrl(url);
     } catch (error) {
       toast.error(String(error));
     }
@@ -56,15 +59,18 @@ export function AppSidebar({
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  tooltip={t("MainWindow/Nav/Faq.Content")}
-                  onClick={() => void openFaq()}
-                >
-                  <CircleHelp />
-                  <span>{t("MainWindow/Nav/Faq.Content")}</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              {EXTERNAL_NAV.map(({ icon: Icon, label, url }) => (
+                <SidebarMenuItem key={label}>
+                  <SidebarMenuButton
+                    tooltip={t(label)}
+                    onClick={() => void openExternal(url)}
+                  >
+                    <Icon />
+                    <span>{t(label)}</span>
+                    <ArrowUpRight className="ml-auto size-3.5 shrink-0 text-muted-foreground group-data-[collapsible=icon]:hidden" />
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
