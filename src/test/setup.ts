@@ -42,7 +42,7 @@ beforeEach(() => {
         this.pointerType = (params.pointerType as string) ?? "mouse";
       }
     }
-    window.PointerEvent = PointerEvent as unknown as typeof PointerEvent;
+    (window as unknown as { PointerEvent: unknown }).PointerEvent = PointerEvent;
   }
   Element.prototype.hasPointerCapture ??= vi.fn(() => false);
   Element.prototype.setPointerCapture ??= vi.fn();
