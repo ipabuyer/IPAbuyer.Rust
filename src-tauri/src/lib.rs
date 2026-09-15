@@ -40,6 +40,7 @@ pub fn run() {
             let state = state::AppState::new(data_dir).map_err(std::io::Error::other)?;
             app.manage(state);
             events::start_polling(app.handle().clone());
+            fit_main_window(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -82,4 +83,38 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+/// 主窗口初始尺寸/位置：钳制在当前显示器工作区（去除任务栏）内并居中。
+///
+/// tauri.conf.json 的固定尺寸在小屏或高 DPI 缩放下会超出可用区域，底部
+/// 压进任务栏；内置 center() 以整块显示器为基准，同样会压入，故按
+/// work_area 自行计算。
+fn fit_main_window(app: &tauri::AppHandle) {
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    let Ok(Some(monitor)) = window.current_monitor() else {
+        return;
+    };
+    let scale = monitor.scale_factor();
+    let work_area = monitor.work_area();
+    let avail_w = work_area.size.width as f64 / scale;
+    let avail_h = work_area.size.height as f64 / scale;
+    // 默认尺寸取自 tauri.conf.json 的窗口配置，仅在超出工作区时收缩
+    let (default_w, default_h) = app
+        .config()
+        .app
+        .windows
+        .first()
+        .map(|w| (w.width, w.height))
+        .unwrap_or((1280.0, 800.0));
+    let width = default_w.min(avail_w);
+    let height = default_h.min(avail_h);
+    let _ = window.set_size(tauri::LogicalSize::new(width, height));
+    let x = work_area.position.x
+        + ((work_area.size.width as f64 - width * scale) / 2.0).round() as i32;
+    let y = work_area.position.y
+        + ((work_area.size.height as f64 - height * scale) / 2.0).round() as i32;
+    let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
 }
