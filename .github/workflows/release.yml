@@ -1,11 +1,9 @@
 name: Release
 
-# 推送版本号 tag（如 v2026.9.15.0）时触发：
-# 构建 x64 + arm64 双架构 → 合并 .msixbundle → 发布到 GitHub Release
 on:
   push:
     tags:
-      - "v*"
+    - "v*"
 
 permissions:
   contents: write
@@ -14,69 +12,59 @@ jobs:
   release:
     runs-on: windows-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
+    - name: Checkout
+      uses: actions/checkout@v7
 
-      - name: 安装 pnpm（读取 packageManager 字段）
-        uses: pnpm/action-setup@v6
+    - uses: pnpm/action-setup@v6
 
-      - name: 安装 Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: pnpm
+    - uses: actions/setup-node@v7
+      with:
+        node-version: 26
+        cache: pnpm
 
-      - name: 安装 Rust（x64 + arm64 target）
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-pc-windows-msvc,aarch64-pc-windows-msvc
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: x86_64-pc-windows-msvc,aarch64-pc-windows-msvc
 
-      - name: Rust 编译缓存
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: src-tauri
 
-      - name: 安装前端依赖
-        run: pnpm install --frozen-lockfile
+    - run: pnpm install --frozen-lockfile
 
-      - name: 下载 ipatool sidecar（x64 + arm64，SHA-256 校验）
-        shell: pwsh
-        run: pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/fetch-ipatool.ps1
+    - name: Download ipatool
+      shell: pwsh
+      run: pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/fetch-ipatool.ps1
 
-      - name: 构建前端
-        run: pnpm build:web
+    - run: pnpm build:web
 
-      - name: 提取版本号
-        id: version
-        shell: pwsh
-        run: |
-          $version = $env:GITHUB_REF_NAME -replace '^v', ''
-          if ($version -notmatch '^\d+\.\d+\.\d+\.\d+$') {
-            throw "tag 必须为 vX.Y.Z.W 四段格式: $env:GITHUB_REF_NAME"
-          }
-          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+    - name: Get version
+      id: version
+      shell: pwsh
+      run: |
+        $version = $env:GITHUB_REF_NAME -replace '^v', ''
+        if ($version -notmatch '^\d+\.\d+\.\d+\.\d+$') {
+          throw "tag 必须为 vX.Y.Z.W 四段格式: $env:GITHUB_REF_NAME"
+        }
+        "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
-      - name: 构建 x64
-        shell: pwsh
-        working-directory: src-tauri
-        run: cargo build --release --features custom-protocol --target x86_64-pc-windows-msvc
+    - name: build x64
+      shell: pwsh
+      working-directory: src-tauri
+      run: cargo build --release --features custom-protocol --target x86_64-pc-windows-msvc
 
-      - name: 构建 arm64
-        shell: pwsh
-        working-directory: src-tauri
-        run: cargo build --release --features custom-protocol --target aarch64-pc-windows-msvc
+    - name: build arm64
+      shell: pwsh
+      working-directory: src-tauri
+      run: cargo build --release --features custom-protocol --target aarch64-pc-windows-msvc
 
-      - name: 打包双架构并合并 .msixbundle
-        shell: pwsh
-        run: >
-          pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/make-msix.ps1
-          -Version '${{ steps.version.outputs.version }}'
-          -TargetArch x64,arm64
-          -RustTarget x86_64-pc-windows-msvc,aarch64-pc-windows-msvc
+    - name: make msixbundle
+      shell: pwsh
+      run: >
+        pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/make-msix.ps1 -Version '${{ steps.version.outputs.version }}' -TargetArch x64,arm64 -RustTarget x86_64-pc-windows-msvc,aarch64-pc-windows-msvc
 
-      - name: 发布到 GitHub Release
-        uses: ncipollo/release-action@v1
-        with:
-          artifacts: msix/out/IPAbuyer_*.msixbundle
-          generateReleaseNotes: true
-          allowUpdates: true
+    - uses: ncipollo/release-action@v1
+      with:
+        artifacts: msix/out/IPAbuyer_*.msixbundle
+        generateReleaseNotes: true
+        allowUpdates: true
