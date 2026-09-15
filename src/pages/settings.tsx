@@ -156,9 +156,9 @@ export function SettingsPage() {
     try {
       await api.legacyDbImport();
       setLegacyExists(false);
-      toast.success(t("Settings/Database/Clear/SuccessMessage"));
+      toast.success(t("Settings/Database/LegacyImport/SuccessMessage"));
     } catch (error) {
-      toast.error(String(error));
+      toast.error(t("Settings/Database/LegacyImport/FailMessage", { 0: String(error) }));
     }
   }
 

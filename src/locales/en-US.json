@@ -22,6 +22,8 @@
   "Settings/Database/Clear/ConfirmMessage": "Are you sure you want to clear the purchased records in the local database? {{0}}Current number of records: {{1}}. {{0}}This operation is irreversible.",
   "Settings/Database/Clear/FailMessage": "Clear failed: {{0}}",
   "Settings/Database/Clear/SuccessMessage": "Local records have been cleared. {{0}} Before clearing: {{1}} items, after clearing: {{2}} items.",
+  "Settings/Database/LegacyImport/SuccessMessage": "Purchase history imported from the legacy IPAbuyer.",
+  "Settings/Database/LegacyImport/FailMessage": "Failed to import the legacy database: {{0}}",
   "Settings/Dialog/CloseButton": "Sure",
   "Settings/Dialog/ConfirmAction/Close": "Cancel",
   "Settings/Dialog/ConfirmAction/Primary": "Confirm clearing",

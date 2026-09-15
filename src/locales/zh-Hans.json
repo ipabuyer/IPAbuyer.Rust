@@ -22,6 +22,8 @@
   "Settings/Database/Clear/ConfirmMessage": "确定要清空本地数据库中的已购买记录吗？{{0}}当前记录数：{{1}} 条。{{0}}此操作不可恢复。",
   "Settings/Database/Clear/FailMessage": "清空失败：{{0}}",
   "Settings/Database/Clear/SuccessMessage": "本地记录已清空。{{0}}清空前：{{1}} 条，清空后：{{2}} 条。",
+  "Settings/Database/LegacyImport/SuccessMessage": "已导入旧版 IPAbuyer 的已购记录。",
+  "Settings/Database/LegacyImport/FailMessage": "导入旧版数据库失败：{{0}}",
   "Settings/Dialog/CloseButton": "确定",
   "Settings/Dialog/ConfirmAction/Close": "取消",
   "Settings/Dialog/ConfirmAction/Primary": "确认清空",
