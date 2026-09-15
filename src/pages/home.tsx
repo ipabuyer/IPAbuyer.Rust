@@ -338,10 +338,13 @@ function AppCard({
         ) : undefined
       }
     >
-      <div className="flex flex-col items-end gap-1">
-        <span className="text-xs text-muted-foreground">{item.version}</span>
-        <span className={cn("text-xs font-medium", statusClass)}>{statusText}</span>
-      </div>
+      {/* WinUI3 卡片架构：版本号/状态为标题与动作区之间的独立横向列 */}
+      <span className="w-20 shrink-0 text-right text-xs text-muted-foreground" title={item.version ?? undefined}>
+        {item.version}
+      </span>
+      <span className={cn("w-24 shrink-0 truncate text-right text-xs font-medium", statusClass)} title={statusText}>
+        {statusText}
+      </span>
       {isBlocked && (
         <span title={t("MainPage/PurchaseBlockedReason/NonFree")}>
           <Ellipsis className="size-4 text-muted-foreground" />
