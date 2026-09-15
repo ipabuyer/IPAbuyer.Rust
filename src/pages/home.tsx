@@ -205,12 +205,12 @@ export function HomePage() {
     <div className="flex h-full flex-col">
       {/* 筛选/操作区 */}
       <div className="flex flex-wrap items-center gap-2 border-b px-6 py-3">
-        <div className="flex overflow-hidden rounded-md border">
+        <div className="flex h-8 overflow-hidden rounded-md border">
           {(["all", "not_purchased", "purchased"] as Filter[]).map((key) => (
             <button
               key={key}
               className={cn(
-                "px-3 py-1.5 text-xs",
+                "h-full px-3 text-xs",
                 filter === key ? "bg-primary text-primary-foreground" : "hover:bg-accent",
               )}
               onClick={() => setFilter(key)}
@@ -220,7 +220,7 @@ export function HomePage() {
           ))}
         </div>
         <Select value={developer} onValueChange={setDeveloper}>
-          <SelectTrigger className="h-8 w-44 text-xs">
+          <SelectTrigger size="sm" className="w-44 text-xs">
             <SelectValue placeholder={t("MainPage/DeveloperSelectorAllItem.Content")} />
           </SelectTrigger>
           <SelectContent>
