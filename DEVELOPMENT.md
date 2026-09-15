@@ -47,7 +47,7 @@ IPAbuyer 是一款发布至 Microsoft Store 的桌面应用，帮助用户浏览
 ## 3. 技术栈与工程结构
 
 - 桌面框架：Tauri 2（WebView2，最低 Windows 10 1809）。
-- 前端：React 19 + TypeScript + Vite 7 + Tailwind CSS v4 + shadcn/ui；状态用 zustand；i18n 用 i18next。
+- 前端：React 19 + TypeScript 7 + Vite 8 + Tailwind CSS v4 + shadcn/ui；状态用 zustand；i18n 用 i18next。
 - 后端：Rust（edition 2024，≥1.85），业务核心 `src-tauri/src/core/` 整体并入自 [IPAbuyer.Core](https://github.com/ipabuyer/IPAbuyer.Core)（该仓库已淘汰，不再以 crate/DLL 依赖）。
 
 | 位置 | 职责 |

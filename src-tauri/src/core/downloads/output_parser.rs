@@ -137,7 +137,7 @@ fn progress_regex() -> &'static fancy_regex::Regex {
 }
 
 fn try_extract_progress(line: &str) -> Option<i32> {
-    let matches: Vec<fancy_regex::Captures<'_>> = progress_regex()
+    let matches: Vec<fancy_regex::Captures<'_, str>> = progress_regex()
         .captures_iter(line)
         .collect::<Result<Vec<_>, _>>()
         .ok()?;

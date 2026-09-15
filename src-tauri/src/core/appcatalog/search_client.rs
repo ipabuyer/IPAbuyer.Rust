@@ -35,45 +35,52 @@ pub fn search(name: &str, limit: i64, country_code: &str) -> IpatoolResult {
     };
     let limit = limit.max(1);
 
-    let agent = ureq::AgentBuilder::new()
-        .timeout(SEARCH_TIMEOUT)
-        .user_agent(USER_AGENT)
-        .build();
+    // ureq 3：非 2xx 默认转 Err 且不带响应体，关闭后统一在 Ok 分支内
+    // 按 status 处理，保持错误体优先的解析逻辑。
+    let agent = ureq::Agent::new_with_config(
+        ureq::config::Config::builder()
+            .user_agent(USER_AGENT)
+            .timeout_global(Some(SEARCH_TIMEOUT))
+            .http_status_as_error(false)
+            .build(),
+    );
 
-    let request = agent
+    match agent
         .get(SEARCH_ENDPOINT)
         .query("term", query)
         .query("entity", "software")
         .query("limit", &limit.to_string())
-        .query("country", &country);
-
-    match request.call() {
+        .query("country", &country)
+        .call()
+    {
         Ok(response) => {
-            let content = response.into_string().unwrap_or_default();
-            IpatoolResult::from_streams(
-                NormalizedText::Raw(content),
-                NormalizedText::Raw(String::new()),
-                0,
-            )
-        }
-        Err(ureq::Error::Status(code, response)) => {
-            let reason = response.status_text().to_string();
-            let content = response.into_string().unwrap_or_default();
-            let error = if content.trim().is_empty() {
-                NormalizedText::Keyed {
-                    key: "Ipatool/Error/HttpRequestFailed",
-                    args: vec![code.to_string(), reason],
-                }
+            let status = response.status();
+            let code = status.as_u16();
+            let reason = status.canonical_reason().unwrap_or_default();
+            let content = response.into_body().read_to_string().unwrap_or_default();
+            if (200..300).contains(&code) {
+                IpatoolResult::from_streams(
+                    NormalizedText::Raw(content),
+                    NormalizedText::Raw(String::new()),
+                    0,
+                )
             } else {
-                NormalizedText::Raw(content)
-            };
-            IpatoolResult::from_streams(NormalizedText::Raw(String::new()), error, i32::from(code))
+                let error = if content.trim().is_empty() {
+                    NormalizedText::Keyed {
+                        key: "Ipatool/Error/HttpRequestFailed",
+                        args: vec![code.to_string(), reason.to_string()],
+                    }
+                } else {
+                    NormalizedText::Raw(content)
+                };
+                IpatoolResult::from_streams(NormalizedText::Raw(String::new()), error, i32::from(code))
+            }
         }
-        Err(ureq::Error::Transport(transport)) => {
-            // ureq 的超时以 Transport 错误上报（无独立 Timeout 类别），统一透传原始描述。
+        Err(err) => {
+            // 网络层错误（连接/IO/超时/协议），统一透传原始描述。
             IpatoolResult::from_streams(
                 NormalizedText::Raw(String::new()),
-                NormalizedText::Raw(transport.to_string()),
+                NormalizedText::Raw(err.to_string()),
                 -1,
             )
         }

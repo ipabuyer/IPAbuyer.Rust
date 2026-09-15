@@ -2,3 +2,5 @@
 # 放行 esbuild 的 postinstall（下载平台二进制，vite 依赖它）
 allowBuilds:
   esbuild: true
+minimumReleaseAgeExclude:
+  - lucide-react@1.46.0

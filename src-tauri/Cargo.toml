@@ -22,19 +22,19 @@ tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-window-state = "2"
-keyring = { version = "3", features = ["windows-native"] }
+keyring = "4"
 uuid = { version = "1", features = ["v4"] }
-dirs = "6"
+dirs = "7"
 tokio = { version = "1", features = ["time"] }
 
 # core 业务逻辑（并入自 IPAbuyer.Core，版本对齐原 crate）
 chrono = "0.4"
-fancy-regex = "0.13"
+fancy-regex = "0.19"
 regex = "1"
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-ureq = "2"
+ureq = "3"
 
 [profile.release]
 strip = true
