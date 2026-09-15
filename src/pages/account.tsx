@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { ExternalLink, Loader2, RotateCw, LogOut } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,14 +10,6 @@ import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
 import { useRenderMessage } from "@/lib/messages";
 import { useSession } from "@/stores/session";
-
-type Severity = "success" | "info" | "warning" | "error";
-
-interface StatusBanner {
-  severity: Severity;
-  title: string;
-  description?: string;
-}
 
 const APPLE_ACCOUNT_URL = "https://account.apple.com";
 
@@ -32,7 +24,6 @@ export function AccountPage() {
   const [passphrase, setPassphrase] = useState("");
   const [twoFactorPending, setTwoFactorPending] = useState(false);
   const [busy, setBusy] = useState<"" | "login" | "query" | "logout">("");
-  const [banner, setBanner] = useState<StatusBanner | null>(null);
 
   useEffect(() => {
     void api.getPassphrase().then(setPassphrase);
@@ -43,7 +34,7 @@ export function AccountPage() {
 
   async function handleLogin() {
     if (!email.trim() || !password.trim()) {
-      setBanner({ severity: "warning", title: t("LoginPage/Status/RequiredFieldsEmpty") });
+      toast.warning(t("LoginPage/Status/RequiredFieldsEmpty"));
       return;
     }
     setBusy("login");
@@ -58,24 +49,21 @@ export function AccountPage() {
             email.trim().toLowerCase() === "test" && password.trim() === "test";
           setSession(true, email.trim(), mock);
           setTwoFactorPending(false);
-          setBanner({ severity: "success", title: t("LoginPage/Status/LoginSuccess") });
+          toast.success(t("LoginPage/Status/LoginSuccess"));
           break;
         }
         case "RequiresTwoFactor": {
           setTwoFactorPending(true);
           const detail = renderMessage(result.message);
-          setBanner({
-            severity: "warning",
-            title: detail || t("LoginPage/Status/TwoFactorPromptFallback"),
-          });
+          toast.warning(detail || t("LoginPage/Status/TwoFactorPromptFallback"));
           break;
         }
         default: {
-          setBanner({ severity: "error", title: renderMessage(result.message) });
+          toast.error(renderMessage(result.message));
         }
       }
     } catch (error) {
-      setBanner({ severity: "error", title: String(error) });
+      toast.error(String(error));
     } finally {
       setBusy("");
     }
@@ -88,22 +76,20 @@ export function AccountPage() {
       switch (info.status) {
         case "LoggedIn":
           setSession(true, info.email ?? account ?? "", isMock);
-          setBanner({
-            severity: "success",
-            title: t("LoginPage/Status/AuthInfoSuccess"),
+          toast.success(t("LoginPage/Status/AuthInfoSuccess"), {
             description: info.email ?? undefined,
           });
           break;
         case "NotLoggedIn":
           reset();
           setTwoFactorPending(false);
-          setBanner({ severity: "info", title: t("LoginPage/Status/AuthInfoNotLoggedIn") });
+          toast.info(t("LoginPage/Status/AuthInfoNotLoggedIn"));
           break;
         default:
-          setBanner({ severity: "error", title: renderMessage(info.message) });
+          toast.error(renderMessage(info.message));
       }
     } catch (error) {
-      setBanner({ severity: "error", title: String(error) });
+      toast.error(String(error));
     } finally {
       setBusy("");
     }
@@ -117,15 +103,15 @@ export function AccountPage() {
         reset();
         setTwoFactorPending(false);
         setAuthCode("");
-        setBanner({ severity: "info", title: t("LoginPage/Status/LogoutSuccess") });
+        toast.info(t("LoginPage/Status/LogoutSuccess"));
         if (result.passphraseRotated) {
           void api.getPassphrase().then(setPassphrase);
         }
       } else {
-        setBanner({ severity: "error", title: t("LoginPage/Status/LogoutFailed") });
+        toast.error(t("LoginPage/Status/LogoutFailed"));
       }
     } catch (error) {
-      setBanner({ severity: "error", title: String(error) });
+      toast.error(String(error));
     } finally {
       setBusy("");
     }
@@ -135,9 +121,7 @@ export function AccountPage() {
     try {
       await openUrl(APPLE_ACCOUNT_URL);
     } catch (error) {
-      setBanner({
-        severity: "error",
-        title: t("LoginPage/Status/OpenAppleAccountSiteFailed"),
+      toast.error(t("LoginPage/Status/OpenAppleAccountSiteFailed"), {
         description: String(error),
       });
     }
@@ -149,13 +133,6 @@ export function AccountPage() {
         <h1 className="text-lg font-semibold">{t("LoginPage/TitleText.Text")}</h1>
         <p className="text-sm text-muted-foreground">{t("LoginPage/SubtitleText.Text")}</p>
       </div>
-
-      {banner && (
-        <Alert variant={banner.severity === "error" ? "destructive" : "default"}>
-          <AlertTitle>{banner.title}</AlertTitle>
-          {banner.description && <AlertDescription>{banner.description}</AlertDescription>}
-        </Alert>
-      )}
 
       <Card className="relative space-y-4 p-5">
         <fieldset disabled={locked} className="space-y-4 disabled:opacity-60">

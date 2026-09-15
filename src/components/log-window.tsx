@@ -28,7 +28,7 @@ export function LogWindow() {
 
   // CDP 调试用：暴露 store
   useEffect(() => {
-    (window as Record<string, unknown>).__logs = useLogs;
+    (window as unknown as Record<string, unknown>).__logs = useLogs;
   }, []);
 
   // 新日志到达时滚动到底部
