@@ -91,8 +91,25 @@ pub struct AppState {
     pub config: Mutex<Config>,
     pub session: Mutex<Session>,
     pub db: Mutex<Option<PurchasedAppsDb>>,
+    pub queue: QueueState,
+    pub log_buffer: crate::commands::LogBuffer,
     config_path: PathBuf,
     db_path: PathBuf,
+}
+
+/// 下载队列共享状态：队列服务与队列级取消标志。
+pub struct QueueState {
+    pub queue: std::sync::Arc<crate::core::downloads::queue::DownloadQueueService>,
+    pub cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl Default for QueueState {
+    fn default() -> Self {
+        Self {
+            queue: std::sync::Arc::new(crate::core::downloads::queue::DownloadQueueService::new()),
+            cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        }
+    }
 }
 
 impl AppState {
@@ -113,6 +130,8 @@ impl AppState {
             config: Mutex::new(config),
             session: Mutex::new(Session::default()),
             db: Mutex::new(Some(db)),
+            queue: QueueState::default(),
+            log_buffer: crate::commands::LogBuffer::new(),
             config_path,
             db_path: db_path.clone(),
         })

@@ -37,6 +37,7 @@ pub fn run() {
                 .map_err(|e| format!("解析数据目录失败: {e}"))?;
             let state = state::AppState::new(data_dir).map_err(std::io::Error::other)?;
             app.manage(state);
+            events::start_polling(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -50,6 +51,16 @@ pub fn run() {
             commands::settings::settings_set_passphrase_rotation,
             commands::settings::settings_get_passphrase,
             commands::settings::settings_list_storefronts,
+            commands::catalog::catalog_search,
+            commands::purchases::purchase,
+            commands::purchases::purchases_mark,
+            commands::purchases::purchases_unmark,
+            commands::queue::queue_add,
+            commands::queue::queue_start,
+            commands::queue::queue_status,
+            commands::queue::queue_cancel_current,
+            commands::queue::logs_clear,
+            commands::queue::logs_snapshot,
             commands::auth::auth_login,
             commands::auth::auth_verify_code,
             commands::auth::auth_logout,

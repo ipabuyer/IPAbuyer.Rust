@@ -24,6 +24,7 @@ tauri-plugin-opener = "2"
 keyring = { version = "3", features = ["windows-native"] }
 uuid = { version = "1", features = ["v4"] }
 dirs = "6"
+tokio = { version = "1", features = ["time"] }
 
 # core 业务逻辑（并入自 IPAbuyer.Core，版本对齐原 crate）
 chrono = "0.4"
