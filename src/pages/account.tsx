@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
 import { useRenderMessage } from "@/lib/messages";
+import { useLogs } from "@/stores/logs";
 import { useSession } from "@/stores/session";
 
 const APPLE_ACCOUNT_URL = "https://account.apple.com";
@@ -38,6 +39,7 @@ export function AccountPage() {
       return;
     }
     setBusy("login");
+    useLogs.getState().setOpen(true);
     try {
       const result = twoFactorPending
         ? await api.verifyAuthCode(email, password, authCode, passphrase)
@@ -71,6 +73,7 @@ export function AccountPage() {
 
   async function handleQuery() {
     setBusy("query");
+    useLogs.getState().setOpen(true);
     try {
       const info = await api.authInfo();
       switch (info.status) {
@@ -97,6 +100,7 @@ export function AccountPage() {
 
   async function handleLogout() {
     setBusy("logout");
+    useLogs.getState().setOpen(true);
     try {
       const result = await api.logout();
       if (result.success) {

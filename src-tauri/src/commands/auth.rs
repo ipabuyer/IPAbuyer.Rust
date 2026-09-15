@@ -10,7 +10,7 @@ use std::sync::atomic::AtomicBool;
 use serde::Serialize;
 use tauri::State;
 
-use crate::commands::JsMessage;
+use crate::commands::{JsMessage, LogEntryDto};
 use crate::core::auth::login::{self, LoginResult, LoginStatus};
 use crate::core::ipatool::client::{ClientError, IpatoolClient};
 use crate::core::ipatool::response_parser::{
@@ -71,6 +71,14 @@ fn client_error_message(error: ClientError) -> String {
     }
 }
 
+/// 认证动作写日志缓冲（与 sync/queue/purchases 同路径，经轮询 emit）。
+fn push_log(state: &AppState, level: &str, key: &str, args: &[&str]) {
+    let owned: Vec<String> = args.iter().map(|a| a.to_string()).collect();
+    state
+        .log_buffer
+        .push(LogEntryDto::new(level, JsMessage::key(key, &owned)));
+}
+
 fn execute_login(
     state: &AppState,
     account: String,
@@ -93,16 +101,22 @@ fn execute_login(
     let client = IpatoolClient::new(exe_path);
     let cancel = AtomicBool::new(false);
     let result = match auth_code.as_deref() {
-        Some(code) => login::verify_auth_code(
-            &client,
-            &account,
-            &password,
-            Some(&passphrase),
-            code,
-            &cancel,
-            None,
-        ),
-        None => login::login(&client, &account, &password, Some(&passphrase), &cancel, None),
+        Some(code) => {
+            push_log(state, "info", "Auth/Log/VerifyStart", &[&account]);
+            login::verify_auth_code(
+                &client,
+                &account,
+                &password,
+                Some(&passphrase),
+                code,
+                &cancel,
+                None,
+            )
+        }
+        None => {
+            push_log(state, "info", "Auth/Log/LoginStart", &[&account]);
+            login::login(&client, &account, &password, Some(&passphrase), &cancel, None)
+        }
     };
 
     if result.is_success() {
@@ -111,7 +125,12 @@ fn execute_login(
             state::save_passphrase(&passphrase)?;
         }
         let is_mock = login::is_mock_account(Some(&account), Some(&password));
-        state.session.lock().unwrap().set_login(account, is_mock);
+        state.session.lock().unwrap().set_login(account.clone(), is_mock);
+        push_log(state, "success", "Auth/Log/LoginSuccess", &[&account]);
+    } else if result.status == LoginStatus::RequiresTwoFactor {
+        push_log(state, "tip", "Auth/Log/TwoFactorRequired", &[] as &[&str]);
+    } else {
+        push_log(state, "error", "Auth/Log/LoginFailed", &[]);
     }
 
     Ok(to_dto(result))
@@ -140,6 +159,7 @@ pub fn auth_verify_code(
 
 #[tauri::command]
 pub fn auth_logout(state: State<'_, AppState>) -> Result<LogoutDto, String> {
+    push_log(&state, "info", "Auth/Log/LogoutStart", &[]);
     let exe_path = crate::resolver::resolve_executable_path(&state);
     let client = IpatoolClient::new(exe_path);
     let cancel = AtomicBool::new(false);
@@ -148,6 +168,7 @@ pub fn auth_logout(state: State<'_, AppState>) -> Result<LogoutDto, String> {
         .map_err(|e| client_error_message(e))?;
 
     if result.timed_out || result.error_message.is_some() {
+        push_log(&state, "error", "Auth/Log/LogoutFailed", &[]);
         return Ok(LogoutDto {
             success: false,
             passphrase_rotated: false,
@@ -162,6 +183,12 @@ pub fn auth_logout(state: State<'_, AppState>) -> Result<LogoutDto, String> {
         rotated = true;
     }
     state.session.lock().unwrap().reset();
+
+    if rotated {
+        push_log(&state, "success", "Auth/Log/LogoutSuccessRotated", &[]);
+    } else {
+        push_log(&state, "success", "Auth/Log/LogoutSuccess", &[]);
+    }
 
     Ok(LogoutDto {
         success: true,
@@ -187,6 +214,7 @@ pub fn auth_info(state: State<'_, AppState>) -> Result<AuthInfoDto, String> {
 
     if is_account_missing_from_keyring(Some(&payload)) {
         state.session.lock().unwrap().reset();
+        push_log(&state, "info", "Auth/Log/QueryNotLoggedIn", &[] as &[&str]);
         return Ok(AuthInfoDto {
             status: "NotLoggedIn".into(),
             email: None,
@@ -205,6 +233,7 @@ pub fn auth_info(state: State<'_, AppState>) -> Result<AuthInfoDto, String> {
         if !email.is_empty() {
             let is_mock = state.session.lock().unwrap().is_mock;
             state.session.lock().unwrap().set_login(email.clone(), is_mock);
+            push_log(&state, "success", "Auth/Log/QueryLoggedIn", &[email.as_str()]);
         }
         Ok(AuthInfoDto {
             status: "LoggedIn".into(),
@@ -212,6 +241,7 @@ pub fn auth_info(state: State<'_, AppState>) -> Result<AuthInfoDto, String> {
             message: None,
         })
     } else {
+        push_log(&state, "error", "Auth/Log/QueryFailed", &[] as &[&str]);
         let message = match &result.error_message {
             Some(error) => JsMessage::key(error.key, &error.args),
             None => JsMessage::raw(result.error.as_raw().to_string()),
