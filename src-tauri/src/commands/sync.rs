@@ -3,14 +3,14 @@
 //! 取消经共享 `cancel` 标志（`sync_cancel` 命令置位）；完成/取消时 emit
 //! `sync-progress`（running=false）收尾。
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::commands::LogEntryDto;
-use crate::core::purchases::sync_service::{PurchaseSyncService, SyncOutcome};
+use crate::core::purchases::sync_service::SyncOutcome;
 use crate::core::ipatool::client::IpatoolClient;
 use crate::state::AppState;
 

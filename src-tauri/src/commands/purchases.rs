@@ -119,7 +119,7 @@ pub fn purchase(
 }
 
 fn mark_purchased(state: &AppState, bundle_id: &str, account: &str) -> Result<(), String> {
-    let mut db = state.db.lock().unwrap();
+    let db = state.db.lock().unwrap();
     let db = db.as_ref().ok_or("数据库未初始化")?;
     db.save_purchased_app(bundle_id, account, Some("purchased"))
         .map_err(|e| e.to_string())
@@ -135,7 +135,7 @@ pub fn purchases_mark(state: State<'_, AppState>, bundle_id: String, status: Str
         .account
         .clone()
         .ok_or("未登录")?;
-    let mut db = state.db.lock().unwrap();
+    let db = state.db.lock().unwrap();
     let db = db.as_ref().ok_or("数据库未初始化")?;
     db.save_purchased_app(&bundle_id, &account, Some(status.as_str()))
         .map_err(|e| e.to_string())
@@ -151,7 +151,7 @@ pub fn purchases_unmark(state: State<'_, AppState>, bundle_id: String) -> Result
         .account
         .clone()
         .ok_or("未登录")?;
-    let mut db = state.db.lock().unwrap();
+    let db = state.db.lock().unwrap();
     let db = db.as_ref().ok_or("数据库未初始化")?;
     db.remove_purchased_app(&bundle_id, &account)
         .map_err(|e| e.to_string())
