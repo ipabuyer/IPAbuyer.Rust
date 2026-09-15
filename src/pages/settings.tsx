@@ -27,6 +27,7 @@ import { RefreshCw, Database } from "lucide-react";
 import { useLogs } from "@/stores/logs";
 import { useSession } from "@/stores/session";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import type { AppConfig, Storefront } from "@/lib/types";
 
 const DEVELOPER_SITE = "https://ipa.blazesnow.com";
@@ -334,9 +335,27 @@ function CountryPickerDialog({
   onOpenChange: (open: boolean) => void;
   onPicked: (code: string) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [items, setItems] = useState<Storefront[]>([]);
   const [query, setQuery] = useState("");
+
+  // 国名本地化：WebView2 内置 Intl.DisplayNames，按当前语言解析 ISO 区码
+  const regionNames = useMemo(() => {
+    const locale = i18n.language.startsWith("zh") ? "zh-Hans" : "en-US";
+    try {
+      return new Intl.DisplayNames([locale], { type: "region" });
+    } catch {
+      return null;
+    }
+  }, [i18n.language]);
+
+  const displayName = (code: string): string => {
+    try {
+      return regionNames?.of(code.toUpperCase()) ?? code;
+    } catch {
+      return code;
+    }
+  };
 
   useEffect(() => {
     if (open && items.length === 0) {
@@ -348,9 +367,11 @@ function CountryPickerDialog({
     const q = query.trim().toLowerCase();
     if (!q) return items;
     return items.filter(
-      ([code, name]) => code.toLowerCase().includes(q) || name.toLowerCase().includes(q),
+      ([code]) =>
+        code.toLowerCase().includes(q) || displayName(code).toLowerCase().includes(q),
     );
-  }, [items, query]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, query, regionNames]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -368,16 +389,20 @@ function CountryPickerDialog({
             <p className="p-4 text-sm text-muted-foreground">{t("Settings/CountryCode/NoResults")}</p>
           ) : (
             <ul className="py-1">
-              {filtered.map(([code, name]) => (
+              {filtered.map(([code]) => (
                 <li key={code}>
                   <button
-                    className="flex w-full items-center justify-between px-3 py-1.5 text-left text-sm hover:bg-accent"
+                    className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-sm hover:bg-accent"
                     onClick={() => {
                       onPicked(code.toLowerCase());
                       onOpenChange(false);
                     }}
                   >
-                    <span>{name}</span>
+                    <span
+                      className={cn("fi shrink-0", `fi-${code.toLowerCase()}`)}
+                      aria-hidden
+                    />
+                    <span className="min-w-0 flex-1 truncate">{displayName(code)}</span>
                     <span className="text-xs text-muted-foreground uppercase">{code}</span>
                   </button>
                 </li>
