@@ -1,6 +1,6 @@
 Set-Location $PSScriptRoot
 
-$versionJson = npm pkg get version
+$versionJson = pnpm pkg get version
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 try {
@@ -13,6 +13,15 @@ catch {
 
 if ([string]::IsNullOrWhiteSpace($version)) {
     Write-Error 'Package version is empty.'
+    exit 1
+}
+
+# 三段式版本（如 2026.9.14）补 .0，统一为发布流水线要求的四段式
+if ($version -match '^\d+\.\d+\.\d+$') {
+    $version = "$version.0"
+}
+if ($version -notmatch '^\d+\.\d+\.\d+\.\d+$') {
+    Write-Error "Package version is not in the four-segment format: $version"
     exit 1
 }
 
