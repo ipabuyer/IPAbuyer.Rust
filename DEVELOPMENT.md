@@ -170,6 +170,7 @@ node scripts/eval-webview.mjs 9224 "window.__TAURI_INTERNALS__.invoke('settings_
 4. 自绘标题栏（`decorations: false` + `data-tauri-drag-region`）：左侧折叠按钮与应用名，主页时居中显示搜索框，右侧登录头像与最小化/最大化/关闭按钮。
 5. 窗口权限集中在 `src-tauri/capabilities/default.json`；新增插件能力需同步更新。
 6. 业务组件 `SettingsCard`（`src/components/settings-card.tsx`）对应 WinUI3 CommunityToolkit SettingsCard：图标 + 标题/描述 + 右侧操作区。
+7. 窗口几何（大小/位置/最大化）由 tauri-plugin-window-state 持久化至 `app_config_dir/.window-state.json`（物理像素）；启动时 `fit_main_window`（`src-tauri/src/lib.rs`）将恢复的几何钳制在显示器工作区（去除任务栏）内，首次启动在工作区居中。
 
 ## 12. 主页与购买状态
 
