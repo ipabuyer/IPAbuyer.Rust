@@ -40,7 +40,7 @@ if (-not $SkipBuild) {
         $portListening = Get-NetTCPConnection -LocalPort 1420 -State Listen -ErrorAction SilentlyContinue
         if (-not $portListening) {
             Write-Host "启动 vite dev server (localhost:1420)..."
-            Start-Process -FilePath "cmd.exe" -ArgumentList "/c npm run dev" `
+            Start-Process -FilePath "cmd.exe" -ArgumentList "/c pnpm dev" `
                 -WorkingDirectory $RepoRoot -WindowStyle Hidden
             $ready = $false
             for ($i = 0; $i -lt 30; $i++) {

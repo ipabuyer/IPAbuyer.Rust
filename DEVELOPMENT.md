@@ -68,11 +68,11 @@ IPAbuyer 是一款发布至 Microsoft Store 的桌面应用，帮助用户浏览
 
 | 命令 | 作用 |
 | --- | --- |
-| `npm run dev` | 仅启动 Vite（浏览器调试前端布局，Tauri API 不可用） |
-| `npm run tauri dev` | **日常开发主模式**：Vite + debug 构建 + 热重载 + DevTools（F12） |
-| `npm run build` | `tauri build --no-bundle`，产出 `src-tauri/target/release/IPAbuyer.exe` |
+| `pnpm dev` | 仅启动 Vite（浏览器调试前端布局，Tauri API 不可用） |
+| `pnpm tauri dev` | **日常开发主模式**：Vite + debug 构建 + 热重载 + DevTools（F12） |
+| `pnpm build` | `tauri build --no-bundle`，产出 `src-tauri/target/release/IPAbuyer.exe` |
 | `cargo test`（src-tauri 下） | 运行并入的 core 单元测试（119 项） |
-| `npm run msix` | 打包 `msix/out/IPAbuyer_<版本>_x64.msixbundle` |
+| `pnpm msix` | 打包 `msix/out/IPAbuyer_<版本>_x64.msixbundle` |
 | `run.ps1` | 一键构建并启动（自动杀实例 / touch 重编 / custom-protocol）；`-SkipBuild` 只启动、`-Msix` 顺带打包 |
 
 ### 已知构建坑（务必遵守）
@@ -90,7 +90,7 @@ IPAbuyer 是一款发布至 Microsoft Store 的桌面应用，帮助用户浏览
 ```powershell
 # 带调试端口启动（dev 或 release 均可）
 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS='--remote-debugging-port=9224'
-npm run tauri dev          # 或直接启动 release exe
+pnpm tauri dev          # 或直接启动 release exe
 
 # 监听页面异常与 console.error（常驻）
 node scripts/watch-webview-errors.mjs 9224
@@ -105,7 +105,7 @@ node scripts/eval-webview.mjs 9224 "window.__TAURI_INTERNALS__.invoke('settings_
 1. 最终发布至 Microsoft Store；上传 `.msixbundle` 无需本地签名（商店自动重签）。
 2. 版本号采用 `年.月.日.0` CalVer，维护于 `src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml`；MSIX 版本由 `scripts/make-msix.ps1 -Version x.y.z.w` 指定，**必须严格大于商店已发布版本**。
 3. bundle 版本经 `makeappx bundle /bv` 显式指定为与包内版本一致——缺省时 makeappx 会用当前 UTC 时间生成版本（表现为 `2026.914.940.0` 之类的乱象）。
-4. 打包流程：`npm run build` → `npm run msix`；产物 `msix/out/`（已 gitignore）。包内容：`IPAbuyer.exe`（前端已内嵌，无外部资源文件）、`ipatool.exe`、清单与商店图标。
+4. 打包流程：`pnpm build` → `pnpm msix`；产物 `msix/out/`（已 gitignore）。包内容：`IPAbuyer.exe`（前端已内嵌，无外部资源文件）、`ipatool.exe`、清单与商店图标。
 5. 前端不生成 `resources.pri`，清单直接引用 `Assets/` 原始文件名（scale-100）。
 
 ## 6. 内置 ipatool 可执行文件

@@ -15,7 +15,7 @@ $AssetsDir = Join-Path $MsixDir "assets"
 $ExePath  = Join-Path $RepoRoot "src-tauri\target\$Configuration\IPAbuyer.exe"
 
 if (-not (Test-Path $ExePath)) {
-    Write-Error "找不到 $ExePath，请先运行: npm run build"
+    Write-Error "找不到 $ExePath，请先运行: pnpm build"
 }
 
 # ---- 定位 MakeAppx（Windows SDK），不假设安装盘符 ----
@@ -54,7 +54,7 @@ Copy-Item $ExePath $StageDir
 # ---- ipatool sidecar（tauri build 已将 externalBin 复制到 release 目录，去 triple 后缀）----
 $IpatoolPath = Join-Path $RepoRoot "src-tauri\target\$Configuration\ipatool.exe"
 if (-not (Test-Path $IpatoolPath)) {
-    Write-Error "找不到 sidecar $IpatoolPath，请先运行: powershell -File scripts/fetch-ipatool.ps1 && npm run build"
+    Write-Error "找不到 sidecar $IpatoolPath，请先运行: powershell -File scripts/fetch-ipatool.ps1 && pnpm build"
 }
 Copy-Item $IpatoolPath $StageDir
 
