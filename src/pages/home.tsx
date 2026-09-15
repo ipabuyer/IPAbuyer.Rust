@@ -332,10 +332,12 @@ function AppCard({
       header={item.name ?? item.bundleId}
       description={item.developer ?? ""}
       className={cn(isBlocked && "opacity-90")}
+      image={
+        item.artworkUrl ? (
+          <img src={item.artworkUrl} alt="" className="size-12 shrink-0 rounded-lg object-cover" />
+        ) : undefined
+      }
     >
-      {item.artworkUrl && (
-        <img src={item.artworkUrl} alt="" className="size-12 rounded-lg object-cover" />
-      )}
       <div className="flex flex-col items-end gap-1">
         <span className="text-xs text-muted-foreground">{item.version}</span>
         <span className={cn("text-xs font-medium", statusClass)}>{statusText}</span>

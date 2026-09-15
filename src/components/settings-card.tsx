@@ -4,16 +4,18 @@ import type { LucideIcon } from "lucide-react";
 
 /**
  * WinUI3 SettingsCard 的 shadcn 对应物：
- * 左侧图标 + 标题/描述，右侧操作区（children）。
+ * 最左端图标/图片 + 标题/描述，右侧操作区（children）。
  */
 export function SettingsCard({
   icon: Icon,
+  image,
   header,
   description,
   children,
   className,
 }: {
   icon?: LucideIcon;
+  image?: React.ReactNode;
   header: string;
   description?: string;
   children?: React.ReactNode;
@@ -26,6 +28,7 @@ export function SettingsCard({
         className,
       )}
     >
+      {image}
       {Icon && <Icon className="size-5 shrink-0 text-muted-foreground" />}
       <div className="min-w-0 flex-1">
         <div className="text-sm font-medium leading-5">{header}</div>
