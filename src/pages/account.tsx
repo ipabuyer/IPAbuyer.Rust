@@ -122,9 +122,7 @@ export function AccountPage() {
     try {
       await openUrl(APPLE_ACCOUNT_URL);
     } catch (error) {
-      toast.error(t("LoginPage/Status/OpenAppleAccountSiteFailed"), {
-        description: String(error),
-      });
+      toast.error(t("LoginPage/Status/OpenAppleAccountSiteFailed", { 0: String(error) }));
     }
   }
 
