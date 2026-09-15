@@ -41,7 +41,8 @@ impl Default for Config {
             download_directory: None,
             display_language: DISPLAY_LANGUAGE_AUTO.into(),
             detailed_ipatool_log: false,
-            passphrase_rotation_enabled: false,
+            // 产品决策：密钥轮换默认开启（登出自动生成新密钥，见 DEVELOPMENT.md 15）
+            passphrase_rotation_enabled: true,
             ipatool_flavor: IPATOOL_FLAVOR_MAIN.into(),
             custom_ipatool_path: None,
             legacy_db_imported: false,
@@ -223,5 +224,16 @@ pub fn resolve_passphrase(explicit: Option<&str>) -> (String, bool) {
     match get_passphrase() {
         Some(p) => (p, false),
         None => (generate_passphrase(), true),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 密钥轮换默认开启是产品决策（2026-09），防止无意识回退。
+    #[test]
+    fn passphrase_rotation_defaults_to_enabled() {
+        assert!(Config::default().passphrase_rotation_enabled);
     }
 }

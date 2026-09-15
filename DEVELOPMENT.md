@@ -208,7 +208,7 @@ node scripts/eval-webview.mjs 9224 "window.__TAURI_INTERNALS__.invoke('settings_
 | `download_directory` | 下载目录（null = ~/Downloads） | null |
 | `display_language` | 显示语言：`auto` / `zh-Hans` / `en-US` | `auto`（按系统语言） |
 | `detailed_ipatool_log` | ipatool 详细日志 | false |
-| `passphrase_rotation_enabled` | 退出登录后自动轮换密钥 | false |
+| `passphrase_rotation_enabled` | 退出登录后自动轮换密钥 | true |
 | `ipatool_flavor` | ipatool 来源：`main` / `custom` | `main` |
 | `custom_ipatool_path` | 自定义 ipatool.exe 路径 | null |
 
