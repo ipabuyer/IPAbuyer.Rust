@@ -128,3 +128,79 @@ impl LogBuffer {
 }
 
 use std::sync::Mutex;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::purchases::sync_service::{LogLevel, LogMessage};
+
+    #[test]
+    fn js_message_key_serializes_camel_case_tag() {
+        let message = JsMessage::key("Some/Key", &["a".into(), "b".into()]);
+        let json = serde_json::to_value(&message).unwrap();
+        assert_eq!(json["type"], "key");
+        assert_eq!(json["key"], "Some/Key");
+        assert_eq!(json["args"][0], "a");
+        assert_eq!(json["args"][1], "b");
+    }
+
+    #[test]
+    fn js_message_raw_serializes_text_only() {
+        let message = JsMessage::raw("原文");
+        let json = serde_json::to_value(&message).unwrap();
+        assert_eq!(json["type"], "raw");
+        assert_eq!(json["text"], "原文");
+    }
+
+    #[test]
+    fn log_entry_dto_from_log_message_maps_level() {
+        let log = LogMessage::key(LogLevel::Success, "Some/Success", Vec::new());
+        let entry = LogEntryDto::from(&log);
+        assert_eq!(entry.level, "success");
+        assert!(matches!(entry.message, JsMessage::Key { .. }));
+    }
+
+    #[test]
+    fn log_level_name_covers_all_levels() {
+        assert_eq!(log_level_name(LogLevel::Info), "info");
+        assert_eq!(log_level_name(LogLevel::Tip), "tip");
+        assert_eq!(log_level_name(LogLevel::Success), "success");
+        assert_eq!(log_level_name(LogLevel::Error), "error");
+        assert_eq!(log_level_name(LogLevel::Ipatool), "ipatool");
+    }
+
+    #[test]
+    fn log_buffer_is_bounded_ring() {
+        let buffer = LogBuffer::new();
+        for i in 0..1005 {
+            buffer.push(LogEntryDto::new(
+                "info",
+                JsMessage::key(&format!("K/{i}"), &[]),
+            ));
+        }
+        assert_eq!(buffer.len(), 1000);
+        let snapshot = buffer.snapshot_from(0);
+        assert_eq!(snapshot.len(), 1000);
+        // 最早的 5 条被挤出
+        assert!(matches!(&snapshot[0].message, JsMessage::Key { key, .. } if key == "K/5"));
+        assert!(matches!(&snapshot[999].message, JsMessage::Key { key, .. } if key == "K/1004"));
+    }
+
+    #[test]
+    fn log_buffer_snapshot_from_cursor_returns_increment() {
+        let buffer = LogBuffer::new();
+        buffer.push(LogEntryDto::new("info", JsMessage::raw("a")));
+        buffer.push(LogEntryDto::new("info", JsMessage::raw("b")));
+
+        let first = buffer.snapshot_from(0);
+        assert_eq!(first.len(), 2);
+
+        buffer.push(LogEntryDto::new("info", JsMessage::raw("c")));
+        let increment = buffer.snapshot_from(2);
+        assert_eq!(increment.len(), 1);
+        assert!(matches!(&increment[0].message, JsMessage::Raw { text } if text == "c"));
+
+        buffer.clear();
+        assert_eq!(buffer.len(), 0);
+    }
+}

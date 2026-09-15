@@ -184,3 +184,20 @@ pub fn purchases_unmark(state: State<'_, AppState>, bundle_id: String) -> Result
     db.remove_purchased_app(&bundle_id, &account)
         .map_err(|e| e.to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn outcome_name_covers_all_outcomes() {
+        assert_eq!(outcome_name(PurchaseOutcome::Skipped), "Skipped");
+        assert_eq!(outcome_name(PurchaseOutcome::Purchased), "Purchased");
+        assert_eq!(outcome_name(PurchaseOutcome::AlreadyOwned), "AlreadyOwned");
+        assert_eq!(
+            outcome_name(PurchaseOutcome::NeedsOwnedConfirmation),
+            "NeedsOwnedConfirmation"
+        );
+        assert_eq!(outcome_name(PurchaseOutcome::Failed), "Failed");
+    }
+}

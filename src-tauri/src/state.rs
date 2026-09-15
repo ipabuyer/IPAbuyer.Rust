@@ -269,4 +269,58 @@ mod tests {
     fn passphrase_rotation_defaults_to_enabled() {
         assert!(Config::default().passphrase_rotation_enabled);
     }
+
+    /// settings.json 落盘为 snake_case，缺字段回落默认值（含密钥轮换 true）。
+    #[test]
+    fn config_serde_snake_case_round_trip_with_defaults() {
+        let json = r#"{
+            "country_code": "us",
+            "display_language": "en-US",
+            "legacy_db_imported": true
+        }"#;
+        let config: Config = serde_json::from_str(json).unwrap();
+        assert_eq!(config.country_code, "us");
+        assert_eq!(config.display_language, "en-US");
+        assert!(config.legacy_db_imported);
+        assert!(config.passphrase_rotation_enabled);
+        assert!(config.download_directory.is_none());
+        assert_eq!(config.ipatool_flavor, "main");
+
+        let serialized = serde_json::to_string(&Config::default()).unwrap();
+        assert!(serialized.contains("\"country_code\""));
+        assert!(!serialized.contains("countryCode"));
+    }
+
+    #[test]
+    fn resolve_passphrase_prefers_explicit_input_without_touching_store() {
+        let (passphrase, generated) = resolve_passphrase(Some("  abc123  "));
+        assert_eq!(passphrase, "abc123");
+        assert!(!generated);
+    }
+
+    #[test]
+    fn read_display_language_accepts_only_known_values() {
+        let dir = std::env::temp_dir().join("ipabuyer-state-test");
+        fs::create_dir_all(&dir).unwrap();
+
+        let write = |name: &str, text: &str| {
+            let path = dir.join(name);
+            fs::write(&path, text).unwrap();
+            path
+        };
+        let zh = write("zh.json", r#"{"display_language": "zh-Hans"}"#);
+        let en = write("en.json", r#"{"display_language": "en-US"}"#);
+        let auto = write("auto.json", r#"{"display_language": "auto"}"#);
+        let broken = write("broken.json", "not json");
+        let path = zh.clone();
+
+        assert_eq!(read_display_language(&zh), Some("zh-Hans".into()));
+        assert_eq!(read_display_language(&en), Some("en-US".into()));
+        assert_eq!(read_display_language(&auto), None);
+        assert_eq!(read_display_language(&broken), None);
+        assert_eq!(read_display_language(&dir.join("missing.json")), None);
+
+        drop(path);
+        let _ = fs::remove_dir_all(&dir);
+    }
 }

@@ -121,3 +121,33 @@ pub fn settings_list_storefronts() -> Vec<(String, String)> {
         .map(|(code, name)| (code.to_string(), name.to_string()))
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 命令边界出参为 camelCase，字段逐一对应 Config（前端 AppConfig 镜像）。
+    #[test]
+    fn config_dto_maps_all_fields() {
+        let config = Config {
+            country_code: "cn".into(),
+            download_directory: Some("D:/dl".into()),
+            display_language: "zh-Hans".into(),
+            detailed_ipatool_log: true,
+            passphrase_rotation_enabled: true,
+            ipatool_flavor: "custom".into(),
+            custom_ipatool_path: Some("C:/tools/ipatool.exe".into()),
+            legacy_db_imported: true,
+        };
+        let dto = ConfigDto::from(config);
+        let json = serde_json::to_value(&dto).unwrap();
+        assert_eq!(json["countryCode"], "cn");
+        assert_eq!(json["downloadDirectory"], "D:/dl");
+        assert_eq!(json["displayLanguage"], "zh-Hans");
+        assert_eq!(json["detailedIpatoolLog"], true);
+        assert_eq!(json["passphraseRotationEnabled"], true);
+        assert_eq!(json["ipatoolFlavor"], "custom");
+        assert_eq!(json["customIpatoolPath"], "C:/tools/ipatool.exe");
+        assert_eq!(json["legacyDbImported"], true);
+    }
+}

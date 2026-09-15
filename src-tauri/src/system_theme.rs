@@ -70,3 +70,14 @@ pub fn start_theme_watcher(app: AppHandle) {
 pub fn current_system_theme() -> &'static str {
     theme_name(apps_use_light_theme().unwrap_or(true))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::theme_name;
+
+    #[test]
+    fn theme_name_maps_light_flag() {
+        assert_eq!(theme_name(true), "light");
+        assert_eq!(theme_name(false), "dark");
+    }
+}
