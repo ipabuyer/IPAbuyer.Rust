@@ -73,6 +73,7 @@ IPAbuyer 是一款发布至 Microsoft Store 的桌面应用，帮助用户浏览
 | `npm run build` | `tauri build --no-bundle`，产出 `src-tauri/target/release/IPAbuyer.exe` |
 | `cargo test`（src-tauri 下） | 运行并入的 core 单元测试（119 项） |
 | `npm run msix` | 打包 `msix/out/IPAbuyer_<版本>_x64.msixbundle` |
+| `run.ps1` | 一键构建并启动（自动杀实例 / touch 重编 / custom-protocol）；`-SkipBuild` 只启动、`-Msix` 顺带打包 |
 
 ### 已知构建坑（务必遵守）
 
