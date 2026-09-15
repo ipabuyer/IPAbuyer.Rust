@@ -172,7 +172,7 @@ node scripts/eval-webview.mjs 9224 "window.__TAURI_INTERNALS__.invoke('settings_
 
 ## 12. 主页与购买状态
 
-主页（搜索结果列表、筛选、下载进度环）**待实现（M3）**，行为约定如下：
+主页（搜索结果列表、筛选、下载进度环）**已实现（M3）**：
 
 1. 标题栏搜索框（仅主页可用）经 iTunes Search API 搜索：`https://itunes.apple.com/search?term=名称&entity=software&limit=200&country=国家代码`。
 2. 筛选：全部 / 未购买 / 已购买 + 开发者下拉筛选；空结果显示空状态提示。
@@ -182,11 +182,11 @@ node scripts/eval-webview.mjs 9224 "window.__TAURI_INTERNALS__.invoke('settings_
 
 ## 13. ipatool 页
 
-**待实现（M4）**，行为约定（沿用 WinUI3 版）：内置版本卡片（release@2.5.0、"当前使用"徽章、导出）、自定义 ipatool.exe 卡片（选择/使用/删除插槽）、版本要求卡片（≥2.5.0）、详细日志开关（`detailedIpatoolLog`）、清空 ipatool 数据（`~/.ipatool/`）、majd/ipatool 仓库链接。来源选择 `ipatoolFlavor`（main/custom）与 `customIpatoolPath` 已在配置结构中就位。
+**已实现（M4）**：内置版本卡片（release@2.5.0、"当前使用"徽章、导出）、自定义 ipatool.exe 卡片（选择/使用/删除插槽）、版本要求卡片（≥2.5.0）、详细日志开关（`detailedIpatoolLog`）、清空 ipatool 数据（`~/.ipatool/`）、majd/ipatool 仓库链接。来源选择 `ipatoolFlavor`（main/custom）与 `customIpatoolPath` 已在配置结构中就位。
 
 ## 14. 日志系统
 
-**待实现（M3）**，方案与约定：
+**已实现（M3）**：
 
 1. 展示形式为**主窗口右侧滑出面板**（shadcn Sheet），非独立窗口（与 WinUI3 版的差异，已确认）。
 2. 格式 `[日期时间] [INFO] 内容`；等级着色；ipatool 输出的等级标修订为 `[ipatool]`；等宽字体深色底。
@@ -196,7 +196,7 @@ node scripts/eval-webview.mjs 9224 "window.__TAURI_INTERNALS__.invoke('settings_
 
 ## 15. 设置页
 
-**已实现基础项**（`src/pages/settings.tsx` + `commands/settings.rs`）；刷新已购、清空数据库待实现（M4）。
+**已实现全部项**（`src/pages/settings.tsx` + `commands/settings.rs` / `commands/sync.rs` / `commands/ipatool.rs`）。
 
 设置持久化为 `app_data_dir/settings.json`（serde `#[serde(default)]`，新增字段向后兼容），无旧版 LocalSettings 迁移。
 
