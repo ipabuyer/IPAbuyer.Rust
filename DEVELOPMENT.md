@@ -35,6 +35,16 @@ IPAbuyer 是一款发布至 Microsoft Store 的桌面应用，帮助用户浏览
 - 开发者网站：<https://ipa.blazesnow.com>
 - 商店身份：`IPAbuyer.IPAbuyer` / `CN=68F867E4-B304-4B5D-9818-31B1910E0771`（与 WinUI3 版一致，PFN `IPAbuyer.IPAbuyer_kr1hdvrv6tpd0`）
 
+包标识详情（Identity 与已发布的 WinUI3 版保持一致，使商店识别为同一应用）：
+
+| 项 | 值 |
+| --- | --- |
+| Identity Name | `IPAbuyer.IPAbuyer` |
+| Publisher | `CN=68F867E4-B304-4B5D-9818-31B1910E0771` |
+| DisplayName / PublisherDisplayName | IPAbuyer |
+| 体系结构 | x64（CI 另构建 arm64） |
+| 最低系统 | Windows 10 1809 (10.0.17763.0) |
+
 ## 2. 通用约束
 
 1. 所有文件均以 UTF-8 存储、读取和修改；`.ps1` 脚本必须保留 UTF-8 BOM（PowerShell 5.1 会按 GBK 解析无 BOM 的脚本）。
@@ -64,10 +74,18 @@ IPAbuyer 是一款发布至 Microsoft Store 的桌面应用，帮助用户浏览
 
 ## 4. 构建与调试
 
+### 前置条件
+
+- Node.js + pnpm（`@tauri-apps/cli`，版本由 `packageManager` 字段固定）
+- Rust (MSVC) 1.77+；arm64 交叉编译需 LLVM/clang 与 VS ARM64 生成工具
+- Windows SDK（`makeappx.exe`，脚本按 `WindowsSdkDir` 环境变量 → Program Files → 各固定盘根目录下的 `Windows Kits\10\bin` 顺序自动查找）
+- 运行时依赖 WebView2 Evergreen Runtime（Win10/11 一般已内置）
+
 ### 常用命令
 
 | 命令 | 作用 |
 | --- | --- |
+| `pnpm install` | 安装前端依赖（首次 / 锁文件变更后） |
 | `pnpm dev` | 仅启动 Vite（浏览器调试前端布局，Tauri API 不可用） |
 | `pnpm tauri dev` | **日常开发主模式**：Vite + debug 构建 + 热重载 + DevTools（F12） |
 | `pnpm build` | `tauri build --no-bundle`，产出 `src-tauri/target/release/IPAbuyer.exe` |
@@ -108,6 +126,7 @@ node scripts/eval-webview.mjs 9224 "window.__TAURI_INTERNALS__.invoke('settings_
 4. 打包流程：`pnpm build` → `pnpm msix`；产物 `msix/out/`（已 gitignore）。包内容：`IPAbuyer.exe`（前端已内嵌，无外部资源文件）、`ipatool.exe`、清单与商店图标。
 5. 前端不生成 `resources.pri`，清单直接引用 `Assets/` 原始文件名（scale-100）。
 6. **GitHub Actions 自动构建（`.github/workflows/release.yml`）**：推送 `vX.Y.Z.W` 格式的 tag 触发，构建 x64 + arm64 双架构（`cargo build --target`，arm64 交叉编译依赖 runner 自带的 clang），合并为单一 `IPAbuyer_<版本>.msixbundle` 并发布到 GitHub Release。本地 `make-msix.ps1` 默认仍为 x64 单架构；`-TargetArch x64,arm64 -RustTarget <triple列表>` 可本地复现双架构打包（arm64 交叉编译需 clang）。
+7. 本地旁加载（sideload）安装测试需自行签名：`signtool sign /fd SHA256 /a <包>`，证书 Subject 必须为 `CN=68F867E4-B304-4B5D-9818-31B1910E0771`；上传 Partner Center 无需签名（商店自动重签）。
 
 ## 6. 内置 ipatool 可执行文件
 
