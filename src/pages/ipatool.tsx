@@ -4,13 +4,15 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   Check,
-  ExternalLink,
-  Trash2,
-  Info,
+  Eraser,
+  FileUp,
+  GitBranch,
   Loader2,
-  Package,
+  PackageCheck,
+  ScrollText,
+  Tag,
+  Trash2,
   TriangleAlert,
-  Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -133,7 +135,7 @@ export function IpatoolPage() {
       <div className="space-y-2">
         {/* 内置版本卡片 */}
         <SettingsCard
-          icon={Package}
+          icon={PackageCheck}
           header={t("IpatoolPage/Card/Release.Header")}
           description={t("IpatoolPage/Release/DisplayName")}
         >
@@ -158,7 +160,7 @@ export function IpatoolPage() {
 
         {/* 自定义 ipatool 卡片 */}
         <SettingsCard
-          icon={Upload}
+          icon={FileUp}
           header={t("IpatoolPage/Card/Custom.Header")}
           description={info.customPath ?? t("IpatoolPage/Custom/EmptyPath")}
         >
@@ -196,7 +198,7 @@ export function IpatoolPage() {
 
         {/* 版本要求卡片 */}
         <SettingsCard
-          icon={Info}
+          icon={Tag}
           header={t("IpatoolPage/Card/VersionRequirement.Header")}
           description={t("IpatoolPage/Card/VersionRequirement.Description")}
         >
@@ -212,6 +214,7 @@ export function IpatoolPage() {
 
         {/* 详细日志开关 */}
         <SettingsCard
+          icon={ScrollText}
           header={t("IpatoolPage/Card/DetailedIpatoolLog.Header")}
           description={t("IpatoolPage/Card/DetailedIpatoolLog.Description")}
         >
@@ -220,7 +223,7 @@ export function IpatoolPage() {
 
         {/* 清空 ipatool 数据 */}
         <SettingsCard
-          icon={Trash2}
+          icon={Eraser}
           header={t("IpatoolPage/Card/ClearIpatoolData.Header")}
           description={t("IpatoolPage/Card/ClearIpatoolData.Description")}
         >
@@ -231,7 +234,7 @@ export function IpatoolPage() {
 
         {/* 仓库链接 */}
         <SettingsCard
-          icon={ExternalLink}
+          icon={GitBranch}
           header={t("IpatoolPage/Card/Repository.Header")}
           description={t("IpatoolPage/Card/Repository.Description")}
         >
