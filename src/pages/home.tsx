@@ -13,6 +13,13 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -321,80 +328,114 @@ function AppCard({
         ? "text-red-500"
         : "text-muted-foreground";
 
+  // 三点按钮（DropdownMenu）与卡片右键（ContextMenu）渲染同一组菜单项
+  function menuItems(
+    Item: React.ComponentType<{
+      onClick?: () => void;
+      className?: string;
+      children?: React.ReactNode;
+    }>,
+    Separator: React.ComponentType<{ className?: string }>,
+  ) {
+    return (
+      <>
+        {isPurchased ? (
+          <Item onClick={onUnmark}>
+            {t("MainPage/Context/MarkNotPurchasedItem.Text")}
+          </Item>
+        ) : (
+          <Item onClick={onMark}>{t("MainPage/Context/MarkPurchasedItem.Text")}</Item>
+        )}
+        <Separator />
+        <Item onClick={() => void onCopy(item.name)}>
+          <Copy className="size-4" />
+          {t("MainPage/Context/CopyNameItem.Text")}
+        </Item>
+        <Item onClick={() => void onCopy(item.bundleId)}>
+          <Copy className="size-4" />
+          {t("MainPage/Context/CopyIdItem.Text")}
+        </Item>
+        <Separator />
+        <Item onClick={onOpenAppStore}>
+          <ExternalLink className="size-4" />
+          {t("MainPage/Context/OpenAppStoreItem.Text")}
+        </Item>
+      </>
+    );
+  }
+
   return (
-    <SettingsCard
-      header={item.name ?? item.bundleId}
-      description={item.developer ?? ""}
-      className={cn(isBlocked && "opacity-90")}
-      image={
-        item.artworkUrl ? (
-          <img src={item.artworkUrl} alt="" className="size-12 shrink-0 rounded-lg object-cover" />
-        ) : undefined
-      }
-    >
-      {/* WinUI3 卡片架构：版本号/状态为标题与动作区之间的独立横向列 */}
-      <span className="w-20 shrink-0 text-right text-xs text-muted-foreground" title={item.version ?? undefined}>
-        {item.version}
-      </span>
-      <span className={cn("w-24 shrink-0 truncate text-right text-xs font-medium", statusClass)} title={statusText}>
-        {statusText}
-      </span>
-      {isBlocked && (
-        <span title={t("MainPage/PurchaseBlockedReason/NonFree")}>
-          <Ellipsis className="size-4 text-muted-foreground" />
-        </span>
-      )}
-      {!isBlocked && (
-        <Button
-          size="sm"
-          variant={isPurchased ? "outline" : "default"}
-          disabled={busy || queueItem?.status === "Downloading"}
-          onClick={isPurchased ? onDownload : onPurchase}
-        >
-          {busy ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : isPurchased ? (
-            <Download className="size-4" />
-          ) : (
-            <ShoppingCart className="size-4" />
-          )}
-          {isPurchased
-            ? t("MainPage/Action/AddToQueueButton.Content")
-            : t("MainPage/Context/PurchaseItem.Text")}
-        </Button>
-      )}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="size-8">
-            <Ellipsis className="size-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          {isPurchased ? (
-            <DropdownMenuItem onClick={onUnmark}>
-              {t("MainPage/Context/MarkNotPurchasedItem.Text")}
-            </DropdownMenuItem>
-          ) : (
-            <DropdownMenuItem onClick={onMark}>
-              {t("MainPage/Context/MarkPurchasedItem.Text")}
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => void onCopy(item.name)}>
-            <Copy className="size-4" />
-            {t("MainPage/Context/CopyNameItem.Text")}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => void onCopy(item.bundleId)}>
-            <Copy className="size-4" />
-            {t("MainPage/Context/CopyIdItem.Text")}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={onOpenAppStore}>
-            <ExternalLink className="size-4" />
-            {t("MainPage/Context/OpenAppStoreItem.Text")}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </SettingsCard>
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div>
+          <SettingsCard
+            header={item.name ?? item.bundleId}
+            description={item.developer ?? ""}
+            className={cn(isBlocked && "opacity-90")}
+            image={
+              item.artworkUrl ? (
+                <img
+                  src={item.artworkUrl}
+                  alt=""
+                  className="size-12 shrink-0 rounded-lg object-cover"
+                />
+              ) : undefined
+            }
+          >
+            {/* WinUI3 卡片架构：版本号/状态为标题与动作区之间的独立横向列 */}
+            <span
+              className="w-20 shrink-0 text-right text-xs text-muted-foreground"
+              title={item.version ?? undefined}
+            >
+              {item.version}
+            </span>
+            <span
+              className={cn(
+                "w-24 shrink-0 truncate text-right text-xs font-medium",
+                statusClass,
+              )}
+              title={statusText}
+            >
+              {statusText}
+            </span>
+            {isBlocked && (
+              <span title={t("MainPage/PurchaseBlockedReason/NonFree")}>
+                <Ellipsis className="size-4 text-muted-foreground" />
+              </span>
+            )}
+            {!isBlocked && (
+              <Button
+                size="sm"
+                variant={isPurchased ? "outline" : "default"}
+                disabled={busy || queueItem?.status === "Downloading"}
+                onClick={isPurchased ? onDownload : onPurchase}
+              >
+                {busy ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : isPurchased ? (
+                  <Download className="size-4" />
+                ) : (
+                  <ShoppingCart className="size-4" />
+                )}
+                {isPurchased
+                  ? t("MainPage/Action/AddToQueueButton.Content")
+                  : t("MainPage/Context/PurchaseItem.Text")}
+              </Button>
+            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="size-8">
+                  <Ellipsis className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {menuItems(DropdownMenuItem, DropdownMenuSeparator)}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </SettingsCard>
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent>{menuItems(ContextMenuItem, ContextMenuSeparator)}</ContextMenuContent>
+    </ContextMenu>
   );
 }

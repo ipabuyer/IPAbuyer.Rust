@@ -161,4 +161,14 @@ describe("HomePage", () => {
     fireEvent.click(item);
     await vi.waitFor(() => expect(markMock).toHaveBeenCalledWith("com.free", "purchased"));
   });
+
+  it("right-click on a card opens the same menu", async () => {
+    markMock.mockResolvedValue(undefined);
+    const freeCard = screen.getByText("应用-com.free").closest("[data-slot=card]")!;
+    fireEvent.contextMenu(freeCard);
+
+    const item = await screen.findByText("标记为已购买");
+    fireEvent.click(item);
+    await vi.waitFor(() => expect(markMock).toHaveBeenCalledWith("com.free", "purchased"));
+  });
 });
