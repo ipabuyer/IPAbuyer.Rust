@@ -80,6 +80,14 @@ export function HomePage() {
     return options;
   }, [results]);
 
+  // 搜索结果变化后，已选开发者不在新结果中时回退为全部开发者
+  useEffect(() => {
+    if (developer === "all") return;
+    if (!developers.some((d) => d.toLowerCase() === developer.toLowerCase())) {
+      setDeveloper("all");
+    }
+  }, [developers, developer]);
+
   const filtered = useMemo(() => {
     return results.filter((item) => {
       const status = displayStatus(item);
