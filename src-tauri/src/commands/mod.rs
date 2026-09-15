@@ -94,39 +94,74 @@ impl From<&LogMessage> for LogEntryDto {
 }
 
 /// 应用日志缓冲（环形，上限对齐原 UiLogStore 1000 行）。
+///
+/// 每条带单调递增序号：增量拉取按序号过滤，清空（保留计数）与环形挤出
+/// 都不影响游标有效性——按数组下标 skip 的游标会在清空后失步、在填满
+/// 1000 条后永久卡死。
 pub struct LogBuffer {
-    pub entries: Mutex<Vec<LogEntryDto>>,
+    entries: Mutex<Vec<BufferedLog>>,
+    total: AtomicUsize,
+}
+
+struct BufferedLog {
+    seq: usize,
+    entry: LogEntryDto,
 }
 
 impl LogBuffer {
     pub fn new() -> Self {
         LogBuffer {
             entries: Mutex::new(Vec::new()),
+            total: AtomicUsize::new(0),
         }
     }
 
     pub fn push(&self, entry: LogEntryDto) {
+        let seq = self.total.fetch_add(1, Ordering::Relaxed) + 1;
         let mut guard = self.entries.lock().unwrap();
         if guard.len() >= 1000 {
             let overflow = guard.len() + 1 - 1000;
             guard.drain(..overflow);
         }
-        guard.push(entry);
+        guard.push(BufferedLog { seq, entry });
     }
 
-    pub fn snapshot_from(&self, cursor: usize) -> Vec<LogEntryDto> {
-        self.entries.lock().unwrap().iter().skip(cursor).cloned().collect()
+    /// 取序号大于 cursor 的增量，返回条目与新游标。
+    pub fn snapshot_since(&self, cursor: usize) -> (Vec<LogEntryDto>, usize) {
+        let guard = self.entries.lock().unwrap();
+        let mut latest = cursor;
+        let entries = guard
+            .iter()
+            .filter(|buffered| buffered.seq > cursor)
+            .map(|buffered| {
+                latest = latest.max(buffered.seq);
+                buffered.entry.clone()
+            })
+            .collect();
+        (entries, latest)
+    }
+
+    /// 全量快照（日志窗口初始化用）。
+    pub fn snapshot_all(&self) -> Vec<LogEntryDto> {
+        self.entries
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|buffered| buffered.entry.clone())
+            .collect()
     }
 
     pub fn len(&self) -> usize {
         self.entries.lock().unwrap().len()
     }
 
+    /// 只清条目；序号计数单调递增，已发放的游标不失效。
     pub fn clear(&self) {
         self.entries.lock().unwrap().clear();
     }
 }
 
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 
 #[cfg(test)]
@@ -179,7 +214,7 @@ mod tests {
             ));
         }
         assert_eq!(buffer.len(), 1000);
-        let snapshot = buffer.snapshot_from(0);
+        let snapshot = buffer.snapshot_all();
         assert_eq!(snapshot.len(), 1000);
         // 最早的 5 条被挤出
         assert!(matches!(&snapshot[0].message, JsMessage::Key { key, .. } if key == "K/5"));
@@ -187,20 +222,49 @@ mod tests {
     }
 
     #[test]
-    fn log_buffer_snapshot_from_cursor_returns_increment() {
+    fn log_buffer_snapshot_since_returns_increment() {
         let buffer = LogBuffer::new();
         buffer.push(LogEntryDto::new("info", JsMessage::raw("a")));
         buffer.push(LogEntryDto::new("info", JsMessage::raw("b")));
 
-        let first = buffer.snapshot_from(0);
+        let (first, cursor) = buffer.snapshot_since(0);
         assert_eq!(first.len(), 2);
+        assert_eq!(cursor, 2);
 
         buffer.push(LogEntryDto::new("info", JsMessage::raw("c")));
-        let increment = buffer.snapshot_from(2);
+        let (increment, cursor) = buffer.snapshot_since(cursor);
         assert_eq!(increment.len(), 1);
         assert!(matches!(&increment[0].message, JsMessage::Raw { text } if text == "c"));
+        assert_eq!(cursor, 3);
 
         buffer.clear();
         assert_eq!(buffer.len(), 0);
+    }
+
+    #[test]
+    fn log_buffer_cursor_survives_clear_and_ring_eviction() {
+        let buffer = LogBuffer::new();
+        for i in 0..1005 {
+            buffer.push(LogEntryDto::new(
+                "info",
+                JsMessage::key(&format!("K/{i}"), &[]),
+            ));
+        }
+        let (_, cursor) = buffer.snapshot_since(0);
+        assert_eq!(cursor, 1005);
+
+        // 清空后游标依然有效：新日志立即可见（下标制游标会 skip 越界永久卡死）
+        buffer.clear();
+        buffer.push(LogEntryDto::new("info", JsMessage::raw("fresh")));
+        let (entries, cursor) = buffer.snapshot_since(cursor);
+        assert_eq!(entries.len(), 1);
+        assert!(matches!(&entries[0].message, JsMessage::Raw { text } if text == "fresh"));
+        assert_eq!(cursor, 1006);
+
+        // 环形挤出后游标不回退、不重复
+        buffer.push(LogEntryDto::new("info", JsMessage::raw("next")));
+        let (entries, cursor) = buffer.snapshot_since(cursor);
+        assert_eq!(entries.len(), 1);
+        assert_eq!(cursor, 1007);
     }
 }

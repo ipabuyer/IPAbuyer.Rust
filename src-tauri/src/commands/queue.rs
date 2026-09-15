@@ -7,7 +7,7 @@
 use std::sync::atomic::AtomicBool;
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::commands::LogEntryDto;
 use crate::core::appcatalog::search_parser::SearchResult;
@@ -121,7 +121,8 @@ pub fn queue_start(app: AppHandle, state: State<'_, AppState>) -> Result<(), Str
         )
     };
 
-    // 状态/日志经 AppHandle emit，线程内不持有 State<'_>
+    // 状态经 AppHandle emit；日志统一写入全局缓冲，由轮询任务增量推送
+    // （直接 emit 单条会破坏前端按数组解析 log-append 的约定）。
     let app_for_log = app.clone();
     let app_for_change = app.clone();
 
@@ -146,7 +147,9 @@ pub fn queue_start(app: AppHandle, state: State<'_, AppState>) -> Result<(), Str
         };
 
         let mut on_log = |log: crate::core::purchases::sync_service::LogMessage| {
-            app_for_log.emit("log-append", LogEntryDto::from(&log)).ok();
+            if let Some(state) = app_for_log.try_state::<AppState>() {
+                state.log_buffer.push((&log).into());
+            }
         };
         let mut on_change = || {
             app_for_change.emit("queue-changed", ()).ok();
@@ -201,5 +204,5 @@ pub fn logs_clear(state: State<'_, AppState>) {
 /// 全量日志快照（初始化日志面板用）。
 #[tauri::command]
 pub fn logs_snapshot(state: State<'_, AppState>) -> Vec<LogEntryDto> {
-    state.log_buffer.snapshot_from(0)
+    state.log_buffer.snapshot_all()
 }

@@ -38,10 +38,10 @@ pub fn start_polling(app: AppHandle) {
                 }
             }
 
-            // 日志增量
-            let entries = state.log_buffer.snapshot_from(log_cursor);
+            // 日志增量（游标为已取的最大序号；清空与环形挤出不影响其有效性）
+            let (entries, cursor) = state.log_buffer.snapshot_since(log_cursor);
+            log_cursor = cursor;
             if !entries.is_empty() {
-                log_cursor += entries.len();
                 let _ = app.emit("log-append", &entries);
             }
         }
