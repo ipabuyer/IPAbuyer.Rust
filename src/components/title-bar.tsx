@@ -34,6 +34,7 @@ function WindowButton({
 export function TitleBar({ active }: { active: PageKey }) {
   const { t } = useTranslation();
   const loggedIn = useSession((s) => s.loggedIn);
+  const account = useSession((s) => s.account);
   const { query, setQuery, search } = useSearch();
   const appWindow = getCurrentWindow();
 
@@ -66,7 +67,7 @@ export function TitleBar({ active }: { active: PageKey }) {
         )}
       </div>
 
-      {/* 登录态头像：绿色已登录 / 红色未登录（M1 占位 null 为灰色） */}
+      {/* 登录态头像：已登录显示邮箱首字母+绿框 / 未登录 LogOut 图标+红框（M1 占位 null 为灰色） */}
       <Avatar
         className={cn(
           "mr-2 size-6 border",
@@ -74,8 +75,12 @@ export function TitleBar({ active }: { active: PageKey }) {
           loggedIn === false && "border-2 border-red-500",
         )}
       >
-        <AvatarFallback className="text-[10px]">
-          {loggedIn === false && <LogOut className="size-3" />}
+        <AvatarFallback className="text-[10px] font-medium">
+          {loggedIn === false ? (
+            <LogOut className="size-3" />
+          ) : (
+            account?.trim().charAt(0).toUpperCase()
+          )}
         </AvatarFallback>
       </Avatar>
 
