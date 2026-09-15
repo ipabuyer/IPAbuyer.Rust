@@ -30,6 +30,8 @@ pub struct Config {
     pub passphrase_rotation_enabled: bool,
     pub ipatool_flavor: String,
     pub custom_ipatool_path: Option<String>,
+    /// 旧版 WinUI3 数据库是否已导入（避免重复导入覆盖新数据）
+    pub legacy_db_imported: bool,
 }
 
 impl Default for Config {
@@ -42,6 +44,7 @@ impl Default for Config {
             passphrase_rotation_enabled: false,
             ipatool_flavor: IPATOOL_FLAVOR_MAIN.into(),
             custom_ipatool_path: None,
+            legacy_db_imported: false,
         }
     }
 }

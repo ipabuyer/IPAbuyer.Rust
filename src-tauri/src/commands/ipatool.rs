@@ -132,6 +132,7 @@ pub fn legacy_db_import(state: State<'_, AppState>) -> Result<(), String> {
     let db = crate::core::db::PurchasedAppsDb::open(&target)
         .map_err(|e| format!("重新打开数据库失败: {e}"))?;
     *state.db.lock().unwrap() = Some(db);
+    state.update_config(|c| c.legacy_db_imported = true)?;
     Ok(())
 }
 

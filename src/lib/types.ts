@@ -21,6 +21,7 @@ export interface AppConfig {
   passphraseRotationEnabled: boolean;
   ipatoolFlavor: "main" | "custom";
   customIpatoolPath: string | null;
+  legacyDbImported: boolean;
 }
 
 export type AuthStatus =

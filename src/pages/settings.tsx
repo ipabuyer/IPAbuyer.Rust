@@ -276,7 +276,7 @@ export function SettingsPage() {
           </Button>
         </SettingsCard>
 
-        {legacyExists && (
+        {legacyExists && config?.legacyDbImported !== true && (
           <SettingsCard
             icon={Database}
             header="导入旧版数据"
