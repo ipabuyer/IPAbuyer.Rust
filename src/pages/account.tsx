@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { ExternalLink, Loader2, RotateCw, LogOut } from "lucide-react";
+import { ExternalLink, Loader2, RotateCw, LogOut, ScrollText } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -39,7 +39,6 @@ export function AccountPage() {
       return;
     }
     setBusy("login");
-    useLogs.getState().setOpen(true);
     try {
       const result = twoFactorPending
         ? await api.verifyAuthCode(email, password, authCode, passphrase)
@@ -73,7 +72,6 @@ export function AccountPage() {
 
   async function handleQuery() {
     setBusy("query");
-    useLogs.getState().setOpen(true);
     try {
       const info = await api.authInfo();
       switch (info.status) {
@@ -100,7 +98,6 @@ export function AccountPage() {
 
   async function handleLogout() {
     setBusy("logout");
-    useLogs.getState().setOpen(true);
     try {
       const result = await api.logout();
       if (result.success) {
@@ -216,6 +213,10 @@ export function AccountPage() {
           <Button variant="ghost" onClick={() => void handleOpenAppleSite()}>
             <ExternalLink className="size-4" />
             {t("Common/AppleAccount/OpenButton.Content")}
+          </Button>
+          <Button variant="outline" onClick={() => useLogs.getState().setOpen(true)}>
+            <ScrollText className="size-4" />
+            {t("LoginPage/Action/OpenLogDialogButton.Content")}
           </Button>
         </div>
       </Card>
