@@ -42,3 +42,68 @@ pub fn delete_cookie_lock_file() {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::AppState;
+
+    /// 每个用例独立临时目录，避免 SQLite 句柄互扰。
+    fn temp_state(name: &str) -> AppState {
+        let dir = std::env::temp_dir().join(format!("ipabuyer-resolver-{name}-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        AppState::new(dir).expect("temp AppState")
+    }
+
+    fn write_custom_exe(name: &str) -> PathBuf {
+        let path = std::env::temp_dir().join(name);
+        std::fs::write(&path, b"MZ").unwrap();
+        path
+    }
+
+    #[test]
+    fn custom_flavor_with_valid_file_wins() {
+        let state = temp_state("valid");
+        let custom = write_custom_exe("resolver-custom-valid.exe");
+        state
+            .update_config(|c| {
+                c.ipatool_flavor = "custom".into();
+                c.custom_ipatool_path = Some(custom.to_string_lossy().into_owned());
+            })
+            .unwrap();
+
+        assert_eq!(resolve_executable_path(&state), custom);
+        let _ = std::fs::remove_file(custom);
+    }
+
+    #[test]
+    fn main_flavor_ignores_custom_path() {
+        let state = temp_state("main");
+        let custom = write_custom_exe("resolver-custom-ignored.exe");
+        state
+            .update_config(|c| {
+                c.custom_ipatool_path = Some(custom.to_string_lossy().into_owned());
+            })
+            .unwrap();
+
+        assert_ne!(resolve_executable_path(&state), custom);
+        let _ = std::fs::remove_file(custom);
+    }
+
+    #[test]
+    fn custom_flavor_with_missing_file_falls_back() {
+        let state = temp_state("missing");
+        let missing = PathBuf::from("Z:/definitely/missing/ipatool.exe");
+        state
+            .update_config(|c| {
+                c.ipatool_flavor = "custom".into();
+                c.custom_ipatool_path = Some(missing.to_string_lossy().into_owned());
+            })
+            .unwrap();
+
+        let resolved = resolve_executable_path(&state);
+        assert_ne!(resolved, missing);
+        // 回退到 bundled（存在时）或 PATH 兜底名
+        assert!(resolved.is_file() || resolved == PathBuf::from("ipatool.exe"));
+    }
+}

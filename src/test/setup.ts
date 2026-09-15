@@ -27,4 +27,8 @@ beforeEach(() => {
       },
     });
   }
+  // jsdom 未实现 scrollIntoView（日志窗口自动滚动依赖）
+  if (!Element.prototype.scrollIntoView) {
+    Element.prototype.scrollIntoView = vi.fn();
+  }
 });

@@ -1,4 +1,4 @@
-import type { SearchResultItem } from "./types";
+import type { QueueFilter, SearchResultItem } from "./types";
 
 // 前端展示策略（复刻 core purchases/status_policy，仅供渲染；执行仍以后端校验为准）
 
@@ -54,4 +54,31 @@ export const LOG_LEVEL_CLASS: Record<string, string> = {
 
 export function appStoreUrl(countryCode: string, appId: string): string {
   return `https://apps.apple.com/${countryCode}/app/id${appId}`;
+}
+
+/** 开发者下拉选项：去空白、大小写不敏感去重、保持出现顺序。 */
+export function collectDevelopers(results: SearchResultItem[]): string[] {
+  const options: string[] = [];
+  for (const item of results) {
+    const name = item.developer?.trim();
+    if (!name) continue;
+    if (!options.some((o) => o.toLowerCase() === name.toLowerCase())) options.push(name);
+  }
+  return options;
+}
+
+/** 筛选：全部 / 未购买 / 已购买 + 开发者（大小写不敏感）。 */
+export function filterResults(
+  results: SearchResultItem[],
+  filter: QueueFilter,
+  developer: string,
+): SearchResultItem[] {
+  return results.filter((item) => {
+    const status = displayStatus(item);
+    if (filter === "purchased" && status !== "purchased") return false;
+    if (filter === "not_purchased" && status === "purchased") return false;
+    if (developer !== "all" && item.developer?.trim().toLowerCase() !== developer.toLowerCase())
+      return false;
+    return true;
+  });
 }

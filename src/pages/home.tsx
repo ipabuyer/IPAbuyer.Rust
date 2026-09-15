@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/select";
 import { SettingsCard } from "@/components/settings-card";
 import { api } from "@/lib/api";
-import { appStoreUrl, displayStatus } from "@/lib/status";
+import { appStoreUrl, collectDevelopers, displayStatus, filterResults } from "@/lib/status";
 import type { SearchResultItem } from "@/lib/types";
 import { useSearch } from "@/stores/search";
 import { useQueue } from "@/stores/queue";
@@ -70,15 +70,7 @@ export function HomePage() {
     void api.getSettings().then((c) => setCountryCode(c.countryCode));
   }, []);
 
-  const developers = useMemo(() => {
-    const options: string[] = [];
-    for (const item of results) {
-      const name = item.developer?.trim();
-      if (!name) continue;
-      if (!options.some((o) => o.toLowerCase() === name.toLowerCase())) options.push(name);
-    }
-    return options;
-  }, [results]);
+  const developers = useMemo(() => collectDevelopers(results), [results]);
 
   // 搜索结果变化后，已选开发者不在新结果中时回退为全部开发者
   useEffect(() => {
@@ -88,16 +80,10 @@ export function HomePage() {
     }
   }, [developers, developer]);
 
-  const filtered = useMemo(() => {
-    return results.filter((item) => {
-      const status = displayStatus(item);
-      if (filter === "purchased" && status !== "purchased") return false;
-      if (filter === "not_purchased" && status === "purchased") return false;
-      if (developer !== "all" && item.developer?.trim().toLowerCase() !== developer.toLowerCase())
-        return false;
-      return true;
-    });
-  }, [results, filter, developer]);
+  const filtered = useMemo(
+    () => filterResults(results, filter, developer),
+    [results, filter, developer],
+  );
 
   function requireLogin(): boolean {
     if (loggedIn === true) return true;
