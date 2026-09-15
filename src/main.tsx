@@ -1,10 +1,32 @@
-import React from "react";
+import React, { useEffect } from "react";
 import ReactDOM from "react-dom/client";
+import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
 import { ThemeProvider } from "next-themes";
 import App from "./App";
 import { LogWindow } from "./components/log-window";
 import "./i18n";
 import "./index.css";
+
+// 跟随系统深浅主题：WebView2 的 prefers-color-scheme 不保证随系统实时
+// 更新，由后端轮询注册表并 emit system-theme 事件桥接。挂载后延迟一拍
+// 应用初始值，避免被 next-themes 的挂载效果覆盖；此后仅事件驱动切换。
+function SystemThemeSync() {
+  useEffect(() => {
+    const apply = (theme: "light" | "dark") => {
+      document.documentElement.classList.toggle("dark", theme === "dark");
+    };
+    const unlistenPromise = listen<"light" | "dark">("system-theme", (e) => apply(e.payload));
+    const timer = setTimeout(() => {
+      void invoke<"light" | "dark">("system_theme").then(apply);
+    }, 50);
+    return () => {
+      clearTimeout(timer);
+      void unlistenPromise.then((fn) => fn());
+    };
+  }, []);
+  return null;
+}
 
 // 日志窗口与主窗口共用同一前端包，按窗口标签分流渲染
 const label = (window as Record<string, any>).__TAURI_INTERNALS__?.metadata?.currentWindow
@@ -12,6 +34,9 @@ const label = (window as Record<string, any>).__TAURI_INTERNALS__?.metadata?.cur
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <ThemeProvider>{label === "log" ? <LogWindow /> : <App />}</ThemeProvider>
+    <ThemeProvider>
+      <SystemThemeSync />
+      {label === "log" ? <LogWindow /> : <App />}
+    </ThemeProvider>
   </React.StrictMode>,
 );

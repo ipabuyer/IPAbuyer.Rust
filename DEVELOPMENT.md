@@ -164,7 +164,7 @@ node scripts/eval-webview.mjs 9224 "window.__TAURI_INTERNALS__.invoke('settings_
 
 **已实现骨架**（`src/App.tsx`、`src/components/`）。
 
-1. 适配系统明暗模式（next-themes，跟随系统）；主色 neutral。
+1. 适配系统明暗模式，主色 neutral。WebView2 的 prefers-color-scheme 不保证随系统实时更新，故由后端桥接：`system_theme.rs` 轮询注册表（AppsUseLightTheme），变化时设窗口原生主题并 emit `system-theme` 事件，前端 `main.tsx` 的 `SystemThemeSync` 据此切换文档类；`system_theme` 命令供启动时查询初始值。
 2. shadcn/ui Sidebar 侧边栏定位页面，可折叠，折叠按钮在标题栏上。
 3. 4 个导航页：主页、账户、ipatool、设置；页面切换用组件状态（无路由库），与 NavigationView 语义一致。
 4. 自绘标题栏（`decorations: false` + `data-tauri-drag-region`）：左侧折叠按钮与应用名，主页时居中显示搜索框，右侧登录头像与最小化/最大化/关闭按钮。

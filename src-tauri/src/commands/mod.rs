@@ -11,6 +11,7 @@ pub mod purchases;
 pub mod queue;
 pub mod settings;
 pub mod sync;
+pub mod theme;
 
 use serde::Serialize;
 

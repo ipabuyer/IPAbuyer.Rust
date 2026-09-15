@@ -9,6 +9,7 @@ pub mod events;
 pub mod resolver;
 pub mod state;
 pub mod storefront;
+pub mod system_theme;
 
 // M4: 同步与 ipatool 管理命令模块（commands 子模块）
 
@@ -41,6 +42,7 @@ pub fn run() {
             let state = state::AppState::new(data_dir).map_err(std::io::Error::other)?;
             app.manage(state);
             events::start_polling(app.handle().clone());
+            system_theme::start_theme_watcher(app.handle().clone());
             fit_main_window(app.handle());
             Ok(())
         })
@@ -67,6 +69,7 @@ pub fn run() {
             commands::queue::logs_snapshot,
             commands::logs::logs_show_window,
             commands::logs::logs_hide_window,
+            commands::theme::system_theme,
             commands::sync::sync_start,
             commands::sync::sync_cancel,
             commands::sync::sync_status,
