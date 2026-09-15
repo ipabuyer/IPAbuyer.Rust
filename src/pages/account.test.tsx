@@ -20,6 +20,7 @@ vi.mock("@tauri-apps/plugin-opener", () => ({
 vi.mock("sonner", () => ({ toast: toastMock }));
 
 import { AccountPage } from "@/pages/account";
+import { useSession } from "@/stores/session";
 
 beforeEach(async () => {
   invokeMock.mockClear();
@@ -68,6 +69,39 @@ describe("AccountPage", () => {
   it("opens the apple account site via opener", () => {
     fireEvent.click(screen.getByRole("button", { name: /打开苹果账户官网/ }));
     expect(openUrlMock).toHaveBeenCalledWith("https://account.apple.com");
+  });
+
+  it("logged-in state locks the form and offers logout", async () => {
+    useSession.getState().setSession(true, "user@icloud.com", false);
+    expect(await screen.findByRole("button", { name: "退出登录" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "登录" })).toBeNull();
+    // 输入区随锁定蒙版禁用（jsdom 不传播 fieldset disabled 到子控件，断言 fieldset 本身）
+    const fieldset = document.querySelector("fieldset") as HTMLFieldSetElement;
+    expect(fieldset.disabled).toBe(true);
+    expect((screen.getByLabelText(/电子邮箱地址/) as HTMLInputElement).value).toBe(
+      "user@icloud.com",
+    );
+  });
+
+  it("logout resets the session and refetches the rotated passphrase", async () => {
+    useSession.getState().setSession(true, "user@icloud.com", false);
+    let passphraseCalls = 0;
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === "auth_logout")
+        return Promise.resolve({ success: true, passphraseRotated: true, message: null });
+      if (cmd === "settings_get_passphrase") {
+        passphraseCalls += 1;
+        return Promise.resolve(`rotated-${passphraseCalls}`);
+      }
+      return Promise.resolve(null);
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "退出登录" }));
+    await vi.waitFor(() => expect(invokeMock).toHaveBeenCalledWith("auth_logout"));
+    await vi.waitFor(() => expect(useSession.getState().loggedIn).toBe(false));
+    // 密钥轮换开启 → 退出后重新拉取新密钥（挂载时的调用走旧实现不计入）
+    await vi.waitFor(() => expect(passphraseCalls).toBe(1));
+    expect(toastMock.info).toHaveBeenCalled();
   });
 
   it("two-factor flow: login asks for the code, verify completes the session", async () => {

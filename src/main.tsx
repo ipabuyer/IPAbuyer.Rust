@@ -5,7 +5,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { ThemeProvider } from "next-themes";
 import App from "./App";
 import { LogWindow } from "./components/log-window";
-import { useThemeStore } from "./stores/theme";
+import { applySystemTheme } from "./lib/theme";
 import "./i18n";
 import "./index.css";
 
@@ -20,14 +20,11 @@ window.addEventListener("contextmenu", (e) => e.preventDefault());
 // 写入的内联值（否则浅色应用模式下滚动条等仍是深色）。
 function SystemThemeSync() {
   useEffect(() => {
-    const apply = (theme: "light" | "dark") => {
-      document.documentElement.classList.toggle("dark", theme === "dark");
-      document.documentElement.style.colorScheme = theme;
-      useThemeStore.getState().setSystem(theme);
-    };
-    const unlistenPromise = listen<"light" | "dark">("system-theme", (e) => apply(e.payload));
+    const unlistenPromise = listen<"light" | "dark">("system-theme", (e) =>
+      applySystemTheme(e.payload),
+    );
     const timer = setTimeout(() => {
-      void invoke<"light" | "dark">("system_theme").then(apply);
+      void invoke<"light" | "dark">("system_theme").then(applySystemTheme);
     }, 50);
     return () => {
       clearTimeout(timer);
