@@ -1,0 +1,111 @@
+//! 搜索命令：iTunes Search + 已购状态合成（core 承担）。
+
+use std::collections::HashMap;
+
+use serde::Serialize;
+use tauri::State;
+
+use crate::commands::JsMessage;
+use crate::core::appcatalog::search_parser::SearchResult;
+use crate::state::AppState;
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchResultDto {
+    pub bundle_id: String,
+    pub id: Option<String>,
+    pub name: Option<String>,
+    pub developer: Option<String>,
+    pub artwork_url: Option<String>,
+    pub price: String,
+    pub version: Option<String>,
+    pub purchased: String,
+}
+
+fn to_dto(result: SearchResult) -> SearchResultDto {
+    SearchResultDto {
+        bundle_id: result.bundle_id,
+        id: result.id,
+        name: result.name,
+        developer: result.developer,
+        artwork_url: result.artwork_url,
+        price: result.price,
+        version: result.version,
+        purchased: result.purchased,
+    }
+}
+
+/// 搜索 App Store；超时或空响应返回空列表。
+/// 未登录时不合成已购状态（全部为搜索原始状态）。
+#[tauri::command]
+pub fn catalog_search(
+    state: State<'_, AppState>,
+    query: String,
+) -> Result<Vec<SearchResultDto>, String> {
+    let query = query.trim().to_string();
+    if query.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let (country_code, account) = {
+        let config = state.config.lock().unwrap();
+        let session = state.session.lock().unwrap();
+        (
+            config.country_code.clone(),
+            if session.logged_in {
+                session.account.clone()
+            } else {
+                None
+            },
+        )
+    };
+
+    let purchased: HashMap<String, String> = match &account {
+        Some(account) => state
+            .db
+            .lock()
+            .unwrap()
+            .as_ref()
+            .ok_or("数据库未初始化")?
+            .get_purchased_apps(account)
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .collect(),
+        None => HashMap::new(),
+    };
+
+    let results = crate::core::appcatalog::catalog_service::search_catalog(
+        &query,
+        200,
+        &country_code,
+        &|code| crate::storefront::contains(code),
+        &purchased,
+    );
+
+    Ok(results
+        .unwrap_or_default()
+        .into_iter()
+        .map(to_dto)
+        .collect())
+}
+
+/// 开发者筛选选项（去重、忽略空名，保持出现顺序）。
+pub fn build_developer_options(names: Vec<String>) -> Vec<String> {
+    let mut options: Vec<String> = Vec::new();
+    for name in names {
+        let name = name.trim().to_string();
+        if name.is_empty() {
+            continue;
+        }
+        let lowered = name.to_lowercase();
+        if !options.iter().any(|o| o.to_lowercase() == lowered) {
+            options.push(name);
+        }
+    }
+    options
+}
+
+/// 供前端渲染的错误消息包装。
+pub fn error_message(text: impl Into<String>) -> JsMessage {
+    JsMessage::raw(text)
+}

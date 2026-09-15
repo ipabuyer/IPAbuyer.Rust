@@ -1,0 +1,27 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "主窗口默认能力：窗口操作、对话框、外部链接",
+  "windows": ["main", "log"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-close",
+    "core:window:allow-start-dragging",
+    "core:window:allow-is-maximized",
+    "dialog:default",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        { "url": "https://account.apple.com" },
+        { "url": "https://account.apple.com/*" },
+        { "url": "https://ipa.blazesnow.com" },
+        { "url": "https://ipa.blazesnow.com/*" },
+        { "url": "https://github.com/ipabuyer/*" },
+        { "url": "https://github.com/majd/ipatool*" },
+        { "url": "https://apps.apple.com/*" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+[package]
+name = "ipabuyer"
+version = "2026.9.14"
+description = "IPAbuyer - Tauri 2 build for Microsoft Store"
+edition = "2024"
+rust-version = "1.85"
+
+[[bin]]
+name = "IPAbuyer"
+path = "src/main.rs"
+
+[features]
+# 直接用 cargo 构建发布版时必须显式启用（tauri build 会自动加）：
+# cargo build --release --features custom-protocol
+custom-protocol = ["tauri/custom-protocol"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-window-state = "2"
+keyring = "4"
+uuid = { version = "1", features = ["v4"] }
+dirs = "7"
+tokio = { version = "1", features = ["time"] }
+
+# 旧版 WinUI3 密钥迁移：读 WinRT PasswordVault；系统主题监听：读注册表
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = ["Security_Credentials", "Win32_System_Registry"] }
+
+# core 业务逻辑（并入自 IPAbuyer.Core，版本对齐原 crate）
+chrono = "0.4"
+fancy-regex = "0.19"
+regex = "1"
+rusqlite = { version = "0.40", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ureq = "3"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
