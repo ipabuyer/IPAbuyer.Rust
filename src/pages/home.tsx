@@ -143,6 +143,8 @@ export function HomePage() {
 
   async function handleDownload(item: SearchResultItem) {
     if (!requireLogin()) return;
+    // 下载的可见反馈少（进度环不明显），自动展开日志窗口展示队列过程
+    openLog(true);
     const added = await api.queueAdd({
       bundleId: item.bundleId,
       appId: item.id,
