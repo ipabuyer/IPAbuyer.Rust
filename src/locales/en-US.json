@@ -75,6 +75,7 @@
   "MainWindow/Nav/Ipatool.Content": "ipatool",
   "MainWindow/Nav/Downloads.Content": "download",
   "MainWindow/Nav/Settings.Content": "Settings",
+  "MainWindow/Nav/Faq.Content": "FAQ",
   "IpatoolPage/DescriptionTextBlock.Text": "You can switch between the built-in official version of ipatool and customized ipatool.exe.",
   "IpatoolPage/Card/Release.Header": "Built-in ipatool",
   "IpatoolPage/Release/VersionTextBlock.Text": "release@2.5.0",

@@ -75,6 +75,7 @@
   "MainWindow/Nav/Ipatool.Content": "ipatool",
   "MainWindow/Nav/Downloads.Content": "下载",
   "MainWindow/Nav/Settings.Content": "设置",
+  "MainWindow/Nav/Faq.Content": "常见问题",
   "IpatoolPage/DescriptionTextBlock.Text": "可在内置正式版 ipatool 与自定义 ipatool.exe 之间切换。",
   "IpatoolPage/Card/Release.Header": "内置 ipatool",
   "IpatoolPage/Release/VersionTextBlock.Text": "release@2.5.0",

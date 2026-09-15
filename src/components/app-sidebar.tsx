@@ -1,5 +1,7 @@
-import { House, Package, Settings, UserRound } from "lucide-react";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { CircleHelp, House, Package, Settings, UserRound } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import {
   Sidebar,
   SidebarContent,
@@ -11,6 +13,8 @@ import {
 } from "@/components/ui/sidebar";
 
 export type PageKey = "main" | "account" | "ipatool" | "settings";
+
+const FAQ_URL = "https://ipa.blazesnow.com/faq.html";
 
 const NAV = [
   { key: "main", icon: House, label: "MainWindow/Nav/Main.Content" },
@@ -27,6 +31,13 @@ export function AppSidebar({
   onNavigate: (page: PageKey) => void;
 }) {
   const { t } = useTranslation();
+  async function openFaq() {
+    try {
+      await openUrl(FAQ_URL);
+    } catch (error) {
+      toast.error(String(error));
+    }
+  }
   return (
     <Sidebar collapsible="icon">
       <SidebarContent>
@@ -45,6 +56,15 @@ export function AppSidebar({
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  tooltip={t("MainWindow/Nav/Faq.Content")}
+                  onClick={() => void openFaq()}
+                >
+                  <CircleHelp />
+                  <span>{t("MainWindow/Nav/Faq.Content")}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
