@@ -32,7 +32,7 @@ IPAbuyer 是一款发布至 Microsoft Store 的桌面应用，帮助用户浏览
 
 - 底层工具：[majd/ipatool](https://github.com/majd/ipatool) 2.5.0，所有认证、购买、下载经其完成
 - 代码仓库：<https://github.com/ipabuyer/IPAbuyer.Rust>
-- 开发者网站：<https://www.blazesnow.com/ipa/>
+- 开发者网站：<https://ipa.blazesnow.com>
 - 商店身份：`IPAbuyer.IPAbuyer` / `CN=68F867E4-B304-4B5D-9818-31B1910E0771`（与 WinUI3 版一致，PFN `IPAbuyer.IPAbuyer_kr1hdvrv6tpd0`）
 
 ## 2. 通用约束

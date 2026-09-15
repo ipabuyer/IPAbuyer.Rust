@@ -37,7 +37,7 @@
   "Settings/Card/ClearLocalDatabase.Header": "清空本地购买记录",
   "Settings/Card/CountryCode.Description": "用于查询与购买，可从 App Store 支持的国家/地区中选择。",
   "Settings/Card/CountryCode.Header": "国家/地区代码",
-  "Settings/Card/DeveloperSite.Description": "https://www.blazesnow.com/ipa/",
+  "Settings/Card/DeveloperSite.Description": "https://ipa.blazesnow.com",
   "Settings/Card/DeveloperSite.Header": "开发者网站",
   "Settings/Card/DownloadDirectory.Description": "下载文件保存位置。",
   "Settings/Card/DownloadDirectory.Header": "下载目录",

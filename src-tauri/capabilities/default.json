@@ -16,7 +16,8 @@
       "allow": [
         { "url": "https://account.apple.com" },
         { "url": "https://account.apple.com/*" },
-        { "url": "https://www.blazesnow.com/*" },
+        { "url": "https://ipa.blazesnow.com" },
+        { "url": "https://ipa.blazesnow.com/*" },
         { "url": "https://github.com/ipabuyer/*" },
         { "url": "https://github.com/majd/ipatool*" },
         { "url": "https://apps.apple.com/*" }

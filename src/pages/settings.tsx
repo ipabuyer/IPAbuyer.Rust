@@ -29,7 +29,7 @@ import { useSession } from "@/stores/session";
 import { api } from "@/lib/api";
 import type { AppConfig, Storefront } from "@/lib/types";
 
-const DEVELOPER_SITE = "https://www.blazesnow.com/ipa/";
+const DEVELOPER_SITE = "https://ipa.blazesnow.com";
 const PROJECT_REPO = "https://github.com/ipabuyer/ipabuyer";
 
 export function SettingsPage() {

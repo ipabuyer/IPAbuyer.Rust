@@ -37,7 +37,7 @@
   "Settings/Card/ClearLocalDatabase.Header": "Clear local purchase history",
   "Settings/Card/CountryCode.Description": "For query and purchase, select from countries or regions supported by the App Store.",
   "Settings/Card/CountryCode.Header": "Country code",
-  "Settings/Card/DeveloperSite.Description": "https://www.blazesnow.com/ipa/",
+  "Settings/Card/DeveloperSite.Description": "https://ipa.blazesnow.com",
   "Settings/Card/DeveloperSite.Header": "Developer website",
   "Settings/Card/DownloadDirectory.Description": "The location where downloaded files are saved.",
   "Settings/Card/DownloadDirectory.Header": "Download catalog",
