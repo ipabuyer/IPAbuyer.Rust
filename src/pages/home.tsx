@@ -51,6 +51,11 @@ const FILTER_KEY: Record<Filter, string> = {
   purchased: "MainPage/Filter/OnlyPurchasedItem.Content",
 };
 
+// 应用显示名：名称为空白时回退 bundleId（对齐 WinUI3 GetAppDisplayLabel）
+function appDisplayLabel(item: SearchResultItem): string {
+  return item.name?.trim() ? item.name : item.bundleId;
+}
+
 // 下载进度环（不确定式，对应 WinUI ActivityRing）
 function ActivityRing() {
   return (
@@ -101,26 +106,36 @@ export function HomePage() {
   async function handlePurchase(item: SearchResultItem) {
     if (!requireLogin()) return;
     setBusyBundle(item.bundleId);
+    const label = appDisplayLabel(item);
     try {
       const result = await api.purchase(item.bundleId, item.price, item.purchased);
       switch (result.outcome) {
         case "Purchased":
-          toast.success(result.detail === "Mock" ? t("MainPage/Purchase/MockSuccess") : t("MainPage/Purchase/Success"));
+          toast.success(
+            result.detail === "Mock"
+              ? t("MainPage/Purchase/MockSuccess", { 0: label })
+              : t("MainPage/Purchase/Success", { 0: label }),
+          );
           markLocal(item.bundleId, "purchased");
           break;
         case "AlreadyOwned":
         case "NeedsOwnedConfirmation":
-          toast.success(t("MainPage/Purchase/OwnedDetected"));
+          toast.success(t("MainPage/Purchase/OwnedDetected", { 0: label }));
           markLocal(item.bundleId, "purchased");
           break;
         case "Skipped":
-          toast.info(t("MainPage/Purchase/SkipNonFree"));
+          toast.info(t("MainPage/Purchase/SkipNonFree", { 0: label }));
           break;
         default:
-          toast.error(t("MainPage/Purchase/Failed"), { description: result.detail ?? undefined });
+          toast.error(
+            t("MainPage/Purchase/Failed", {
+              0: label,
+              1: result.detail?.trim() || t("MainPage/Purchase/UnknownError"),
+            }),
+          );
       }
     } catch (error) {
-      toast.error(t("MainPage/Purchase/Failed"), { description: String(error) });
+      toast.error(t("MainPage/Purchase/Failed", { 0: label, 1: String(error) }));
     } finally {
       setBusyBundle("");
     }
@@ -145,7 +160,7 @@ export function HomePage() {
       try {
         await api.queueStart();
       } catch (error) {
-        toast.error(t("MainPage/DownloadQueue/StartFailed"), { description: String(error) });
+        toast.error(t("MainPage/DownloadQueue/StartFailed", { 0: String(error) }));
         void refresh();
         return;
       }
@@ -179,13 +194,14 @@ export function HomePage() {
     }
   }
 
-  async function handleCopy(text: string | null) {
-    if (!text) {
-      toast.info(t("MainPage/Log/CopyFieldEmpty"));
+  async function handleCopy(text: string | null, field: "name" | "id") {
+    const fieldLabel = t(field === "name" ? "MainPage/Field/Name" : "MainPage/Field/Id");
+    if (!text?.trim()) {
+      toast.info(t("MainPage/Log/CopyFieldEmpty", { 0: fieldLabel }));
       return;
     }
     await navigator.clipboard.writeText(text);
-    toast.success(t("MainPage/Log/CopyFieldSuccess"));
+    toast.success(t("MainPage/Log/CopyFieldSuccess", { 0: fieldLabel, 1: 1 }));
   }
 
   async function handleOpenAppStore(item: SearchResultItem) {
@@ -196,7 +212,7 @@ export function HomePage() {
     try {
       await openUrl(appStoreUrl(countryCode, item.id));
     } catch (error) {
-      toast.error(t("MainPage/Log/AppStoreOpenFailed"), { description: String(error) });
+      toast.error(t("MainPage/Log/AppStoreOpenFailed", { 0: String(error) }));
     }
   }
 
@@ -298,7 +314,7 @@ function AppCard({
   onDownload: () => void;
   onMark: () => void;
   onUnmark: () => void;
-  onCopy: (text: string | null) => Promise<void>;
+  onCopy: (text: string | null, field: "name" | "id") => Promise<void>;
   onOpenAppStore: () => void;
 }) {
   const { t } = useTranslation();
@@ -347,11 +363,11 @@ function AppCard({
           <Item onClick={onMark}>{t("MainPage/Context/MarkPurchasedItem.Text")}</Item>
         )}
         <Separator />
-        <Item onClick={() => void onCopy(item.name)}>
+        <Item onClick={() => void onCopy(item.name, "name")}>
           <Copy className="size-4" />
           {t("MainPage/Context/CopyNameItem.Text")}
         </Item>
-        <Item onClick={() => void onCopy(item.bundleId)}>
+        <Item onClick={() => void onCopy(item.bundleId, "id")}>
           <Copy className="size-4" />
           {t("MainPage/Context/CopyIdItem.Text")}
         </Item>
@@ -399,7 +415,13 @@ function AppCard({
               {statusText}
             </span>
             {isBlocked && (
-              <span title={t("MainPage/PurchaseBlockedReason/NonFree")}>
+              <span
+                title={
+                  item.price.trim()
+                    ? t("MainPage/PurchaseBlockedReason/NonFree", { 0: item.price.trim() })
+                    : t("MainPage/PurchaseBlockedReason/Unknown")
+                }
+              >
                 <Ellipsis className="size-4 text-muted-foreground" />
               </span>
             )}

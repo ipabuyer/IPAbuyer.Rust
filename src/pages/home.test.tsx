@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18next from "i18next";
 import { initReactI18next } from "react-i18next";
 import { fireEvent, render, screen } from "@testing-library/react";
+import { toast } from "sonner";
 import zhHans from "@/locales/zh-Hans.json";
 
 const purchaseMock = vi.fn();
@@ -72,6 +73,10 @@ beforeEach(async () => {
   markMock.mockReset().mockResolvedValue(undefined);
   unmarkMock.mockReset().mockResolvedValue(undefined);
   getSettingsMock.mockClear();
+  vi.mocked(toast.success).mockClear();
+  vi.mocked(toast.info).mockClear();
+  vi.mocked(toast.warning).mockClear();
+  vi.mocked(toast.error).mockClear();
 
   useSession.getState().setSession(true, "user@icloud.com", false);
   useSearch.setState({
@@ -144,6 +149,22 @@ describe("HomePage", () => {
     // 本地状态更新后，原"购买"卡片变为"下载"（两处下载按钮：已购 + 刚转为已购）
     await vi.waitFor(() =>
       expect(screen.getAllByRole("button", { name: "下载" }).length).toBe(2),
+    );
+  });
+
+  it("purchase toast interpolates the app name instead of {{0}}", async () => {
+    purchaseMock.mockResolvedValue({ bundleId: "com.free", outcome: "Purchased", detail: null });
+    fireEvent.click(screen.getByRole("button", { name: "购买" }));
+    await vi.waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("购买成功: 应用-com.free"),
+    );
+  });
+
+  it("purchase failure toast fills name and reason", async () => {
+    purchaseMock.mockResolvedValue({ bundleId: "com.free", outcome: "Failed", detail: "boom" });
+    fireEvent.click(screen.getByRole("button", { name: "购买" }));
+    await vi.waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("购买失败: 应用-com.free - boom"),
     );
   });
 
