@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
-import { LogSheet } from "@/components/log-sheet";
-import { useLogs } from "@/stores/logs";
 import { useQueue } from "@/stores/queue";
 import { AppSidebar, type PageKey } from "@/components/app-sidebar";
 import { TitleBar } from "@/components/title-bar";
@@ -22,13 +20,10 @@ const PAGES = {
 
 export default function App() {
   const [page, setPage] = useState<PageKey>("main");
-  const logOpen = useLogs((s) => s.open);
-  const setLogOpen = useLogs((s) => s.setOpen);
   const Page = PAGES[page];
 
-  // 初始化日志/队列事件监听
+  // 初始化队列事件监听（日志由独立日志窗口自行监听）
   useEffect(() => {
-    void useLogs.getState().init();
     void useQueue.getState().init();
   }, []);
 
@@ -57,7 +52,6 @@ export default function App() {
         </main>
       </SidebarInset>
       <Toaster position="bottom-center" />
-      <LogSheet open={logOpen} onOpenChange={setLogOpen} />
     </SidebarProvider>
   );
 }

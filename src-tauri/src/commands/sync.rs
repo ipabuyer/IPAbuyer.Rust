@@ -82,8 +82,8 @@ pub fn sync_start(app: AppHandle, state: State<'_, AppState>) -> Result<SyncResu
     let mut db_guard = state.db.lock().unwrap();
     let db = db_guard.as_mut().ok_or("数据库未初始化")?;
     let service = &state.sync.service;
-    let app_for_log = app.clone();
     let app_for_progress = app.clone();
+    let log_buffer = &state.log_buffer;
 
     // MutexGuard 不能跨线程，用 thread::scope 绑定 db 借用生命周期（同步为阻塞调用）
     let outcome: SyncOutcome = std::thread::scope(|scope| {
@@ -96,8 +96,9 @@ pub fn sync_start(app: AppHandle, state: State<'_, AppState>) -> Result<SyncResu
                         SyncProgress { running: true, synced, total },
                     );
                 };
+                // 写入日志缓冲，由事件轮询统一 emit（与 queue/purchases 路径一致）
                 let mut on_log = |log: crate::core::purchases::sync_service::LogMessage| {
-                    let _ = app_for_log.emit("log-append", LogEntryDto::from(&log));
+                    log_buffer.push((&log).into());
                 };
                 service.sync(
                     &account,

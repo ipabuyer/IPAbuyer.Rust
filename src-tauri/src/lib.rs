@@ -65,6 +65,8 @@ pub fn run() {
             commands::queue::queue_cancel_current,
             commands::queue::logs_clear,
             commands::queue::logs_snapshot,
+            commands::logs::logs_show_window,
+            commands::logs::logs_hide_window,
             commands::sync::sync_start,
             commands::sync::sync_cancel,
             commands::sync::sync_status,

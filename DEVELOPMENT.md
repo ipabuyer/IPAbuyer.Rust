@@ -190,7 +190,7 @@ node scripts/eval-webview.mjs 9224 "window.__TAURI_INTERNALS__.invoke('settings_
 
 **已实现（M3）**：
 
-1. 展示形式为**主窗口右侧滑出面板**（shadcn Sheet），非独立窗口（与 WinUI3 版的差异，已确认）。
+1. 展示形式为**独立日志窗口**（对齐 WinUI3 版 LogViewerWindow）：Rust 命令 `logs_show_window`/`logs_hide_window` 按需创建/隐藏（label `log`，用户关闭即销毁、再开重建并快照回填）；前端 `main.tsx` 按窗口标签分流渲染 `LogWindow`。
 2. 格式 `[日期时间] [INFO] 内容`；等级着色；ipatool 输出的等级标修订为 `[ipatool]`；等宽字体深色底。
 3. 执行购买、登录、查询登录状态、下载、终止下载、刷新已购列表时自动展开。
 4. 数据链路：core 命令的日志回调 → 后端 UiLogStore（环形缓冲 1000 行）→ `emit("log-append")` → 前端 store；详细日志开关（`detailedIpatoolLog`）开启时记录命令与完整输出。
@@ -248,7 +248,7 @@ node scripts/eval-webview.mjs 9224 "window.__TAURI_INTERNALS__.invoke('settings_
 | 业务核心 | Rust DLL 经 C ABI FFI | Rust crate 直接并入 `src-tauri/src/core/` |
 | 设置存储 | LocalSettings（Settings.dat） | `settings.json`（app_data_dir） |
 | 密钥存储 | Windows PasswordVault | Windows 凭据管理器（keyring），旧值不可迁移 |
-| 日志展示 | 独立窗口 LogViewerWindow | 主窗口右侧滑出面板（Sheet） |
+| 日志展示 | 独立窗口 LogViewerWindow | 独立日志窗口（label `log`，按需创建） |
 | 语言切换 | AppInstance.Restart 重启生效 | i18next 即时切换，首帧语言经 initialization_script 注入 |
 | 数据目录 | 包 LocalState | app_data_dir（packaged 虚拟化），旧库可复制导入 |
 | 更新机制 | 依赖商店 | 依赖商店（无应用内更新） |
