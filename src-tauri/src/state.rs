@@ -136,6 +136,7 @@ impl AppState {
     /// 在 Tauri setup 阶段调用：初始化数据目录、加载设置、打开数据库。
     pub fn new(data_dir: PathBuf) -> Result<Self, String> {
         fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
+        migrate_legacy_passphrase();
         let config_path = data_dir.join("settings.json");
         let config = fs::read_to_string(&config_path)
             .ok()
@@ -195,6 +196,38 @@ pub fn save_passphrase(passphrase: &str) -> Result<(), String> {
 pub fn generate_passphrase() -> String {
     Uuid::new_v4().simple().to_string()
 }
+
+/// 旧 WinUI3 版把密钥存于 WinRT PasswordVault（同名同用户）。本应用改用
+/// 凭据管理器，首次启动时若新存储尚无密钥则从旧存储迁移，商店升级用户
+/// 无需重新登录。任何失败都静默跳过（保持未登录状态下的正常流程）。
+#[cfg(windows)]
+fn migrate_legacy_passphrase() {
+    if get_passphrase().is_some() {
+        return;
+    }
+    if let Some(passphrase) = read_legacy_password_vault() {
+        let _ = save_passphrase(&passphrase);
+    }
+}
+
+#[cfg(windows)]
+fn read_legacy_password_vault() -> Option<String> {
+    use windows::Security::Credentials::PasswordVault;
+
+    let vault = PasswordVault::new().ok()?;
+    let credential = vault
+        .Retrieve(
+            &windows::core::HSTRING::from(PASSPHRASE_SERVICE),
+            &windows::core::HSTRING::from(PASSPHRASE_USER),
+        )
+        .ok()?;
+        let password = credential.Password().ok()?;
+        let password = password.to_string_lossy();
+        (!password.is_empty()).then_some(password)
+}
+
+#[cfg(not(windows))]
+fn migrate_legacy_passphrase() {}
 
 /// settings.json 路径（与 Tauri app_data_dir 解析一致：%APPDATA%/{identifier}）。
 pub fn config_file_path() -> PathBuf {

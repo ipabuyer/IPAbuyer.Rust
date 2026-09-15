@@ -9,7 +9,6 @@ use std::sync::Arc;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 
-use crate::commands::LogEntryDto;
 use crate::core::purchases::sync_service::SyncOutcome;
 use crate::core::ipatool::client::IpatoolClient;
 use crate::state::AppState;

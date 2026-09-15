@@ -146,7 +146,7 @@ node scripts/eval-webview.mjs 9224 "window.__TAURI_INTERNALS__.invoke('settings_
 **已实现**（`src-tauri/src/state.rs`）。
 
 1. 密钥显示于账户页输入框；页面初始化时读取已存值，不存在则生成 UUID（32 位十六进制，对齐 `Guid "N"` 格式）填入，**登录成功后才持久化**。
-2. 存储位置：Windows 凭据管理器（keyring crate），service `IPAbuyer.ipatool.passphrase`、user `__default__`（与旧版 PasswordVault 同名但存储不同，旧版密钥无法程序化迁移）。
+2. 存储位置：Windows 凭据管理器（keyring crate），service `IPAbuyer.ipatool.passphrase`、user `__default__`（与旧版 PasswordVault 同名但存储不同）。**首启自动迁移**：凭据管理器尚无密钥时，从旧版 PasswordVault 同名条目读入（`state.rs::migrate_legacy_passphrase`），商店升级用户无需重新登录。
 3. 登录命令的密钥解析顺序：输入框显式传入 > 已存密钥 > 新生成（成功后落库）。
 4. 购买、下载、同步等命令不从输入框读取，统一使用已存密钥。
 5. 修改密钥：提示用户退出登录，改输入框后重新登录。
@@ -158,7 +158,7 @@ node scripts/eval-webview.mjs 9224 "window.__TAURI_INTERNALS__.invoke('settings_
 2. 路径：Tauri `app_data_dir`（`%APPDATA%\com.ipabuyer.app\`）；packaged 运行时经 MSIX 虚拟化重定向到包容器，读写一致。
 3. `src-tauri/src/state.rs` 的 `AppState::new` 在 setup 时打开，句柄以 Mutex 串行化。
 4. 旧版 WinUI3 的数据库在 `%AppData%\Local\Packages\IPAbuyer.IPAbuyer_kr1hdvrv6tpd0\LocalState\PurchasedAppDb.db`，schema 相同可复制导入（设置页提供导入提示，待实现）。
-5. 旧版 LocalSettings 与 PasswordVault 密钥无法程序化迁移，旧用户需重新登录一次。
+5. 旧版 LocalSettings 设置项不迁移（国家码等需重新设置）；PasswordVault 中的加密密钥已支持首启自动迁移（见第 9 节）。
 
 ## 11. UI 总体规范
 
@@ -247,7 +247,7 @@ node scripts/eval-webview.mjs 9224 "window.__TAURI_INTERNALS__.invoke('settings_
 | 技术栈 | WinUI 3 / .NET 10 | Tauri 2 / React 19 + shadcn/ui |
 | 业务核心 | Rust DLL 经 C ABI FFI | Rust crate 直接并入 `src-tauri/src/core/` |
 | 设置存储 | LocalSettings（Settings.dat） | `settings.json`（app_data_dir） |
-| 密钥存储 | Windows PasswordVault | Windows 凭据管理器（keyring），旧值不可迁移 |
+| 密钥存储 | Windows PasswordVault | Windows 凭据管理器（keyring），旧 PasswordVault 密钥首启自动迁移 |
 | 日志展示 | 独立窗口 LogViewerWindow | 独立日志窗口（label `log`，按需创建） |
 | 语言切换 | AppInstance.Restart 重启生效 | i18next 即时切换，首帧语言经 initialization_script 注入 |
 | 数据目录 | 包 LocalState | app_data_dir（packaged 虚拟化），旧库可复制导入 |
