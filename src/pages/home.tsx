@@ -108,6 +108,7 @@ export function HomePage() {
   async function handlePurchase(item: SearchResultItem) {
     if (!requireLogin()) return;
     setBusyBundle(item.bundleId);
+    useLogs.getState().setOpen(true);
     try {
       const result = await api.purchase(item.bundleId, item.price, item.purchased);
       switch (result.outcome) {
@@ -135,6 +136,7 @@ export function HomePage() {
 
   async function handleDownload(item: SearchResultItem) {
     if (!requireLogin()) return;
+    useLogs.getState().setOpen(true);
     const added = await api.queueAdd({
       bundleId: item.bundleId,
       appId: item.id,

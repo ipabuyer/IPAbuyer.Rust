@@ -27,6 +27,18 @@ fn outcome_name(outcome: PurchaseOutcome) -> &'static str {
     }
 }
 
+/// 购买里程碑日志（与 sync/queue 同路径写入缓冲；详细命令输出仍由
+/// detailedIpatoolLog 开关控制）。
+fn push_log(state: &AppState, level: &str, key: &str, args: &[&str]) {
+    let owned: Vec<String> = args.iter().map(|a| a.to_string()).collect();
+    state
+        .log_buffer
+        .push(crate::commands::LogEntryDto::new(
+            level,
+            crate::commands::JsMessage::key(key, &owned),
+        ));
+}
+
 /// 购买（对齐 C# PurchaseService.PurchaseAsync 的前置策略）：
 /// 已购跳过；非免费跳过（detail=NonFree）；模拟账户直通写库；
 /// Purchased / AlreadyOwned / NeedsOwnedConfirmation 三种结果均写入已购记录。
@@ -53,6 +65,7 @@ pub fn purchase(
         });
     }
     if !crate::core::purchases::status_policy::is_price_free_for_purchase(Some(&price)) {
+        push_log(&state, "info", "Purchase/Log/SkippedNonFree", &[&bundle_id]);
         return Ok(PurchaseDto {
             bundle_id,
             outcome: "Skipped".into(),
@@ -70,6 +83,7 @@ pub fn purchase(
 
     if is_mock {
         mark_purchased(&state, &bundle_id, &account)?;
+        push_log(&state, "success", "Purchase/Log/Success", &[&bundle_id]);
         return Ok(PurchaseDto {
             bundle_id,
             outcome: "Purchased".into(),
@@ -77,6 +91,7 @@ pub fn purchase(
         });
     }
 
+    push_log(&state, "info", "Purchase/Log/Start", &[&bundle_id]);
     let exe_path = crate::resolver::resolve_executable_path(&state);
     let passphrase = crate::state::get_passphrase().ok_or("缺少加密密钥，请先重新登录")?;
     let detailed_log = state.config.lock().unwrap().detailed_ipatool_log;
@@ -109,6 +124,19 @@ pub fn purchase(
             | PurchaseOutcome::NeedsOwnedConfirmation
     ) {
         mark_purchased(&state, &bundle_id, &account)?;
+    }
+
+    match outcome {
+        PurchaseOutcome::Purchased => {
+            push_log(&state, "success", "Purchase/Log/Success", &[&bundle_id]);
+        }
+        PurchaseOutcome::AlreadyOwned | PurchaseOutcome::NeedsOwnedConfirmation => {
+            push_log(&state, "success", "Purchase/Log/AlreadyOwned", &[&bundle_id]);
+        }
+        PurchaseOutcome::Failed => {
+            push_log(&state, "error", "Purchase/Log/Failed", &[&bundle_id]);
+        }
+        PurchaseOutcome::Skipped => {}
     }
 
     Ok(PurchaseDto {
