@@ -92,6 +92,7 @@ pub struct AppState {
     pub session: Mutex<Session>,
     pub db: Mutex<Option<PurchasedAppsDb>>,
     pub queue: QueueState,
+    pub sync: SyncState,
     pub log_buffer: crate::commands::LogBuffer,
     config_path: PathBuf,
     db_path: PathBuf,
@@ -107,6 +108,21 @@ impl Default for QueueState {
     fn default() -> Self {
         Self {
             queue: std::sync::Arc::new(crate::core::downloads::queue::DownloadQueueService::new()),
+            cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        }
+    }
+}
+
+/// 已购同步共享状态。
+pub struct SyncState {
+    pub service: crate::core::purchases::sync_service::PurchaseSyncService,
+    pub cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl Default for SyncState {
+    fn default() -> Self {
+        Self {
+            service: crate::core::purchases::sync_service::PurchaseSyncService::new(),
             cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
     }
@@ -131,6 +147,7 @@ impl AppState {
             session: Mutex::new(Session::default()),
             db: Mutex::new(Some(db)),
             queue: QueueState::default(),
+            sync: SyncState::default(),
             log_buffer: crate::commands::LogBuffer::new(),
             config_path,
             db_path: db_path.clone(),

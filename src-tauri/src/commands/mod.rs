@@ -5,9 +5,11 @@
 
 pub mod auth;
 pub mod catalog;
+pub mod ipatool;
 pub mod purchases;
 pub mod queue;
 pub mod settings;
+pub mod sync;
 
 use serde::Serialize;
 

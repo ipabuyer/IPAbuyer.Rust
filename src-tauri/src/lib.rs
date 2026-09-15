@@ -10,6 +10,8 @@ pub mod resolver;
 pub mod state;
 pub mod storefront;
 
+// M4: 同步与 ipatool 管理命令模块（commands 子模块）
+
 use tauri::Manager;
 
 /// 应用标识（须与 tauri.conf.json 的 identifier 保持一致）。
@@ -61,6 +63,18 @@ pub fn run() {
             commands::queue::queue_cancel_current,
             commands::queue::logs_clear,
             commands::queue::logs_snapshot,
+            commands::sync::sync_start,
+            commands::sync::sync_cancel,
+            commands::sync::sync_status,
+            commands::sync::sync_last_time,
+            commands::ipatool::ipatool_info,
+            commands::ipatool::ipatool_set_flavor,
+            commands::ipatool::ipatool_set_custom_path,
+            commands::ipatool::ipatool_delete_custom,
+            commands::ipatool::ipatool_export,
+            commands::ipatool::ipatool_clear_data,
+            commands::ipatool::legacy_db_exists,
+            commands::ipatool::legacy_db_import,
             commands::auth::auth_login,
             commands::auth::auth_verify_code,
             commands::auth::auth_logout,
