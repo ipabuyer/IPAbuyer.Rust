@@ -185,3 +185,39 @@ pub fn contains(code: &str) -> bool {
     let code = code.trim().to_lowercase();
     !code.is_empty() && STOREFRONTS.iter().any(|(c, _)| c.eq_ignore_ascii_case(&code))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    #[test]
+    fn contains_matches_case_insensitively_and_trims() {
+        assert!(contains("CN"));
+        assert!(contains(" cn "));
+        assert!(contains("Us"));
+        assert!(contains("jp"));
+    }
+
+    #[test]
+    fn contains_rejects_unknown_or_empty_codes() {
+        assert!(!contains(""));
+        assert!(!contains("   "));
+        assert!(!contains("XX"));
+        assert!(!contains("123"));
+        assert!(!contains("zh"));
+    }
+
+    /// 目录质量约束：两位大写字母码、名称非空、无重复；条目总数 175。
+    #[test]
+    fn catalog_entries_are_unique_and_well_formed() {
+        let mut seen = HashSet::new();
+        for (code, name) in STOREFRONTS {
+            assert_eq!(code.len(), 2, "code {code} 非两位");
+            assert!(code.chars().all(|c| c.is_ascii_uppercase()), "code {code} 非大写");
+            assert!(!name.trim().is_empty(), "code {code} 缺名称");
+            assert!(seen.insert(*code), "code {code} 重复");
+        }
+        assert_eq!(seen.len(), 175);
+    }
+}

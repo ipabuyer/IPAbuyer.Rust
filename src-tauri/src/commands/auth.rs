@@ -253,3 +253,44 @@ pub fn auth_info(state: State<'_, AppState>) -> Result<AuthInfoDto, String> {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::auth::login::Message;
+
+    fn result_of(status: LoginStatus) -> LoginResult {
+        LoginResult {
+            status,
+            message: Message::Key {
+                key: "Some/Key",
+                args: Vec::new(),
+            },
+            raw_payload: Some("raw".into()),
+        }
+    }
+
+    #[test]
+    fn status_name_covers_all_statuses() {
+        assert_eq!(status_name(LoginStatus::Success), "Success");
+        assert_eq!(status_name(LoginStatus::RequiresTwoFactor), "RequiresTwoFactor");
+        assert_eq!(status_name(LoginStatus::InvalidCredential), "InvalidCredential");
+        assert_eq!(status_name(LoginStatus::AuthCodeInvalid), "AuthCodeInvalid");
+        assert_eq!(status_name(LoginStatus::NetworkError), "NetworkError");
+        assert_eq!(status_name(LoginStatus::Timeout), "Timeout");
+        assert_eq!(status_name(LoginStatus::UnknownError), "UnknownError");
+    }
+
+    #[test]
+    fn to_dto_maps_message_and_payload() {
+        let dto = to_dto(result_of(LoginStatus::Success));
+        assert_eq!(dto.status, "Success");
+        assert_eq!(dto.raw_payload.as_deref(), Some("raw"));
+        assert!(matches!(dto.message, JsMessage::Key { key, .. } if key == "Some/Key"));
+    }
+
+    #[test]
+    fn client_error_message_localizes_cancel() {
+        assert_eq!(client_error_message(ClientError::Canceled), "操作已取消");
+    }
+}
