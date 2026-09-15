@@ -10,7 +10,7 @@ const queueStartMock = vi.fn();
 const queueCancelMock = vi.fn();
 const markMock = vi.fn();
 const unmarkMock = vi.fn();
-const getSettingsMock = vi.fn(async () => ({
+const getSettingsMock = vi.fn(async (..._args: unknown[]) => ({
   countryCode: "cn",
   downloadDirectory: null,
   displayLanguage: "auto",
@@ -33,8 +33,8 @@ vi.mock("sonner", () => ({
 }));
 vi.mock("@/lib/api", () => ({
   api: {
-    getSettings: (...a: unknown[]) => getSettingsMock(...(a as [])),
-    search: (...a: unknown[]) => searchMock(...(a as [string])),
+    getSettings: () => getSettingsMock(),
+    search: () => searchMock(),
     purchase: (...a: unknown[]) => purchaseMock(...(a as unknown[])),
     mark: (...a: unknown[]) => markMock(...(a as unknown[])),
     unmark: (...a: unknown[]) => unmarkMock(...(a as unknown[])),
