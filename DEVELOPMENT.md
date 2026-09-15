@@ -107,6 +107,7 @@ node scripts/eval-webview.mjs 9224 "window.__TAURI_INTERNALS__.invoke('settings_
 3. bundle 版本经 `makeappx bundle /bv` 显式指定为与包内版本一致——缺省时 makeappx 会用当前 UTC 时间生成版本（表现为 `2026.914.940.0` 之类的乱象）。
 4. 打包流程：`pnpm build` → `pnpm msix`；产物 `msix/out/`（已 gitignore）。包内容：`IPAbuyer.exe`（前端已内嵌，无外部资源文件）、`ipatool.exe`、清单与商店图标。
 5. 前端不生成 `resources.pri`，清单直接引用 `Assets/` 原始文件名（scale-100）。
+6. **GitHub Actions 自动构建（`.github/workflows/release.yml`）**：推送 `vX.Y.Z.W` 格式的 tag 触发，构建 x64 + arm64 双架构（`cargo build --target`，arm64 交叉编译依赖 runner 自带的 clang），合并为单一 `IPAbuyer_<版本>.msixbundle` 并发布到 GitHub Release。本地 `make-msix.ps1` 默认仍为 x64 单架构；`-TargetArch x64,arm64 -RustTarget <triple列表>` 可本地复现双架构打包（arm64 交叉编译需 clang）。
 
 ## 6. 内置 ipatool 可执行文件
 
