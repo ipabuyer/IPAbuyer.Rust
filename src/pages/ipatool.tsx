@@ -206,7 +206,7 @@ export function IpatoolPage() {
               info.builtinAvailable ? "text-green-600" : "text-red-500",
             )}
           >
-            ≥ {t("IpatoolPage/VersionRequirement/MinimumVersionTextBlock.Text")}
+            {t("IpatoolPage/VersionRequirement/MinimumVersionTextBlock.Text")}
           </span>
         </SettingsCard>
 
