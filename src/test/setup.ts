@@ -31,4 +31,20 @@ beforeEach(() => {
   if (!Element.prototype.scrollIntoView) {
     Element.prototype.scrollIntoView = vi.fn();
   }
+  // radix 菜单/下拉的指针事件依赖
+  if (!window.PointerEvent) {
+    class PointerEvent extends MouseEvent {
+      pointerId: number;
+      pointerType: string;
+      constructor(type: string, params: Record<string, unknown> = {}) {
+        super(type, params as MouseEventInit);
+        this.pointerId = (params.pointerId as number) ?? 1;
+        this.pointerType = (params.pointerType as string) ?? "mouse";
+      }
+    }
+    window.PointerEvent = PointerEvent as unknown as typeof PointerEvent;
+  }
+  Element.prototype.hasPointerCapture ??= vi.fn(() => false);
+  Element.prototype.setPointerCapture ??= vi.fn();
+  Element.prototype.releasePointerCapture ??= vi.fn();
 });

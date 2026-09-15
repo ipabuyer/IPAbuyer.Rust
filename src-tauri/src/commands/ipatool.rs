@@ -143,12 +143,16 @@ pub fn legacy_db_exists() -> bool {
 #[tauri::command]
 pub fn legacy_db_import(state: State<'_, AppState>) -> Result<(), String> {
     let source = legacy_db_path().ok_or("未找到旧版数据库")?;
+    import_legacy_db(&state, &source)
+}
+
+fn import_legacy_db(state: &AppState, source: &std::path::Path) -> Result<(), String> {
     {
         let mut db = state.db.lock().unwrap();
         *db = None; // 释放文件句柄
     }
     let target = state.db_path().clone();
-    std::fs::copy(&source, &target).map_err(|e| format!("导入失败: {e}"))?;
+    std::fs::copy(source, &target).map_err(|e| format!("导入失败: {e}"))?;
     let db = crate::core::db::PurchasedAppsDb::open(&target)
         .map_err(|e| format!("重新打开数据库失败: {e}"))?;
     *state.db.lock().unwrap() = Some(db);
@@ -158,13 +162,14 @@ pub fn legacy_db_import(state: State<'_, AppState>) -> Result<(), String> {
 
 fn legacy_db_path() -> Option<PathBuf> {
     let local = dirs::data_local_dir()?;
-    Some(
-        local
-            .join("Packages")
-            .join(LEGACY_PACKAGE_FAMILY)
-            .join("LocalState")
-            .join("PurchasedAppDb.db"),
-    )
+    Some(legacy_db_path_in(local))
+}
+
+fn legacy_db_path_in(base: PathBuf) -> PathBuf {
+    base.join("Packages")
+        .join(LEGACY_PACKAGE_FAMILY)
+        .join("LocalState")
+        .join("PurchasedAppDb.db")
 }
 
 #[cfg(test)]
@@ -265,5 +270,46 @@ mod tests {
         assert_eq!(dto.active_path, exe.to_string_lossy());
         assert_eq!(dto.builtin_version, BUILTIN_IPATOOL_VERSION);
         let _ = std::fs::remove_file(exe);
+    }
+}
+
+#[cfg(test)]
+mod legacy_tests {
+    use super::*;
+    use crate::state::AppState;
+
+    fn temp_state(name: &str) -> AppState {
+        let dir = std::env::temp_dir().join(format!("ipabuyer-legacy-{name}-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        AppState::new(dir).expect("temp AppState")
+    }
+
+    #[test]
+    fn legacy_db_path_in_lays_out_package_path() {
+        let base = PathBuf::from("D:/Local");
+        assert_eq!(
+            legacy_db_path_in(base.clone()),
+            base.join("Packages")
+                .join(LEGACY_PACKAGE_FAMILY)
+                .join("LocalState")
+                .join("PurchasedAppDb.db")
+        );
+    }
+
+    #[test]
+    fn import_legacy_db_swaps_and_reopens_the_database() {
+        // 源：另一个临时 AppState 的合法数据库（schema 与新版一致）
+        let source_state = temp_state("src");
+        let source_path =
+            std::env::temp_dir().join(format!("ipabuyer-legacy-src-{}.db", std::process::id()));
+        std::fs::copy(source_state.db_path(), &source_path).unwrap();
+
+        let state = temp_state("dst");
+        assert!(import_legacy_db(&state, &source_path).is_ok());
+        assert!(state.config.lock().unwrap().legacy_db_imported);
+        // 重开后的连接可用
+        assert!(state.db.lock().unwrap().is_some());
+
+        let _ = std::fs::remove_file(&source_path);
     }
 }

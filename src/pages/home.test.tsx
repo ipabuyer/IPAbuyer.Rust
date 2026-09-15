@@ -146,4 +146,19 @@ describe("HomePage", () => {
       expect(screen.getAllByRole("button", { name: "下载" }).length).toBe(2),
     );
   });
+
+  it("three-dot menu marks a not-purchased card as purchased", async () => {
+    markMock.mockResolvedValue(undefined);
+    const freeCard = screen.getByText("应用-com.free").closest("[data-slot=card]")!;
+    const ellipsis = [...freeCard.querySelectorAll("button")].find((b) =>
+      b.querySelector("svg.lucide-ellipsis"),
+    );
+    expect(ellipsis).toBeTruthy();
+    fireEvent.pointerDown(ellipsis!);
+    fireEvent.click(ellipsis!);
+
+    const item = await screen.findByText("标记为已购买");
+    fireEvent.click(item);
+    await vi.waitFor(() => expect(markMock).toHaveBeenCalledWith("com.free", "purchased"));
+  });
 });
