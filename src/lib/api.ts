@@ -51,6 +51,32 @@ export const api = {
   },
   logsClear: () => invoke<void>("logs_clear"),
 
+  // ---- 同步 ----
+  syncStart: () =>
+    invoke<{ outcome: string; synced: number; total: number; message: string | null }>(
+      "sync_start",
+    ),
+  syncCancel: () => invoke<void>("sync_cancel"),
+  syncStatus: () => invoke<{ running: boolean; synced: number; total: number }>("sync_status"),
+  syncLastTime: () => invoke<string | null>("sync_last_time"),
+
+  // ---- ipatool 管理 ----
+  ipatoolInfo: () =>
+    invoke<{
+      flavor: "main" | "custom";
+      customPath: string | null;
+      builtinVersion: string;
+      activePath: string;
+      builtinAvailable: boolean;
+    }>("ipatool_info"),
+  ipatoolSetFlavor: (flavor: string) => invoke<void>("ipatool_set_flavor", { flavor }),
+  ipatoolSetCustomPath: (path: string) => invoke<void>("ipatool_set_custom_path", { path }),
+  ipatoolDeleteCustom: () => invoke<void>("ipatool_delete_custom"),
+  ipatoolExport: () => invoke<string>("ipatool_export"),
+  ipatoolClearData: () => invoke<void>("ipatool_clear_data"),
+  legacyDbExists: () => invoke<boolean>("legacy_db_exists"),
+  legacyDbImport: () => invoke<void>("legacy_db_import"),
+
   // ---- 认证 ----
   login: (account: string, password: string, passphrase: string) =>
     invoke<AuthResult>("auth_login", { account, password, passphrase: nullable(passphrase) }),

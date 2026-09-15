@@ -23,6 +23,9 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { SettingsCard } from "@/components/settings-card";
+import { RefreshCw, Database } from "lucide-react";
+import { useLogs } from "@/stores/logs";
+import { useSession } from "@/stores/session";
 import { api } from "@/lib/api";
 import type { AppConfig, Storefront } from "@/lib/types";
 
@@ -36,12 +39,24 @@ export function SettingsPage() {
   const [countryOpen, setCountryOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [defaultDir, setDefaultDir] = useState("");
+  const [lastSync, setLastSync] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [legacyExists, setLegacyExists] = useState(false);
 
   useEffect(() => {
     void api.getSettings().then(setConfig);
     void api.defaultDownloadDirectory().then(setDefaultDir);
     void getVersion().then(setVersion);
+    void api.legacyDbExists().then(setLegacyExists);
+    void refreshLastSync();
   }, []);
+
+  function refreshLastSync() {
+    void api
+      .syncLastTime()
+      .then(setLastSync)
+      .catch(() => setLastSync(null));
+  }
 
   async function persist(action: Promise<AppConfig>, successMessage?: string) {
     setSaving(true);
@@ -85,6 +100,64 @@ export function SettingsPage() {
       toast.success(t("Settings/DownloadDirectory/ResetSuccessMessage", { 0: fallback }));
     } catch (error) {
       toast.error(t("Settings/DownloadDirectory/ResetFailMessage", { 0: String(error) }));
+    }
+  }
+
+  async function handleSync() {
+    const session = useSession.getState();
+    if (session.loggedIn !== true) {
+      toast.warning(t("Settings/PurchaseSync/LoginRequiredTitle"), {
+        description: t("Settings/PurchaseSync/LoginRequiredMessage"),
+      });
+      return;
+    }
+    if (session.isMock) {
+      toast.info(t("Settings/PurchaseSync/MockTitle"), {
+        description: t("Settings/PurchaseSync/MockMessage"),
+      });
+      return;
+    }
+    if (syncing) {
+      useLogs.getState().setOpen(true);
+      return;
+    }
+    setSyncing(true);
+    useLogs.getState().setOpen(true);
+    try {
+      const result = await api.syncStart();
+      switch (result.outcome) {
+        case "Completed":
+          toast.success(t("Settings/PurchaseSync/ProgressFormat", { 0: result.synced, 1: result.total }));
+          break;
+        case "Canceled":
+          toast.info(t("Common/Cancel"));
+          break;
+        case "AlreadyRunning":
+          toast.info(t("Settings/PurchaseSync/Running"));
+          break;
+        case "Mock":
+          toast.info(t("Settings/PurchaseSync/MockMessage"));
+          break;
+        default:
+          toast.error(t("Settings/PurchaseSync/FailedMessage"), {
+            description: result.message ?? undefined,
+          });
+      }
+    } catch (error) {
+      toast.error(t("Settings/PurchaseSync/FailedMessage"), { description: String(error) });
+    } finally {
+      setSyncing(false);
+      refreshLastSync();
+    }
+  }
+
+  async function handleLegacyImport() {
+    try {
+      await api.legacyDbImport();
+      setLegacyExists(false);
+      toast.success(t("Settings/Database/Clear/SuccessMessage"));
+    } catch (error) {
+      toast.error(String(error));
     }
   }
 
@@ -178,6 +251,42 @@ export function SettingsPage() {
             onCheckedChange={(checked) => void persist(api.setPassphraseRotation(checked))}
           />
         </SettingsCard>
+
+        <SettingsCard
+          icon={RefreshCw}
+          header={t("Settings/Card/PurchaseSync.Header")}
+          description={t("Settings/Card/PurchaseSync.Description")}
+        >
+          {syncing ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <span className="text-xs text-muted-foreground">
+              {lastSync
+                ? t("Settings/PurchaseSync/LastSyncFormat", { 0: new Date(lastSync).toLocaleString() })
+                : t("Settings/PurchaseSync/NeverSynced")}
+            </span>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={syncing}
+            onClick={() => void handleSync()}
+          >
+            {t("Settings/PurchaseSync/RefreshButton.Content")}
+          </Button>
+        </SettingsCard>
+
+        {legacyExists && (
+          <SettingsCard
+            icon={Database}
+            header="导入旧版数据"
+            description="检测到 WinUI3 版的已购数据库，可导入到本应用。"
+          >
+            <Button variant="outline" size="sm" onClick={() => void handleLegacyImport()}>
+              导入
+            </Button>
+          </SettingsCard>
+        )}
 
         <SettingsCard
           icon={ExternalLink}
