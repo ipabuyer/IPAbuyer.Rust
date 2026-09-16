@@ -1,4 +1,6 @@
 //! 购买命令：前置策略（宿主侧）+ core 购买执行与响应解释。
+//! 执行 ipatool 子进程（最长 2 分钟），命令标记 `(async)` 在独立线程运行，
+//! 避免同步命令阻塞主线程冻结 UI/光标。
 
 use serde::Serialize;
 use std::sync::atomic::AtomicBool;
@@ -42,7 +44,7 @@ fn push_log(state: &AppState, level: &str, key: &str, args: &[&str]) {
 /// 购买（对齐 C# PurchaseService.PurchaseAsync 的前置策略）：
 /// 已购跳过；非免费跳过（detail=NonFree）；模拟账户直通写库；
 /// Purchased / AlreadyOwned / NeedsOwnedConfirmation 三种结果均写入已购记录。
-#[tauri::command]
+#[tauri::command(async)]
 pub fn purchase(
     state: State<'_, AppState>,
     bundle_id: String,

@@ -2,8 +2,9 @@
 //!
 //! 对齐 C# LoginService / IpatoolClient.AuthInfoAsync / LoginPage 的编排：
 //! 密钥解析（显式 > 已存 > 新生成，登录成功后落库）、模拟账户识别、
-//! 登出后按开关轮换密钥。core 调用为阻塞式；Tauri 同步命令运行于
-//! blocking 线程池，不会阻塞主事件循环。
+//! 登出后按开关轮换密钥。core 调用为阻塞式（ipatool 子进程，最长 2 分钟），
+//! 命令标记 `(async)` 在独立线程执行——Tauri 同步命令默认运行在主线程，
+//! 会阻塞事件循环冻结 UI/光标。
 
 use std::sync::atomic::AtomicBool;
 
@@ -136,7 +137,7 @@ fn execute_login(
     Ok(to_dto(result))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn auth_login(
     state: State<'_, AppState>,
     account: String,
@@ -146,7 +147,7 @@ pub fn auth_login(
     execute_login(&state, account, password, passphrase, None)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn auth_verify_code(
     state: State<'_, AppState>,
     account: String,
@@ -157,7 +158,7 @@ pub fn auth_verify_code(
     execute_login(&state, account, password, passphrase, Some(auth_code))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn auth_logout(state: State<'_, AppState>) -> Result<LogoutDto, String> {
     push_log(&state, "info", "Auth/Log/LogoutStart", &[]);
     let exe_path = crate::resolver::resolve_executable_path(&state);
@@ -199,7 +200,7 @@ pub fn auth_logout(state: State<'_, AppState>) -> Result<LogoutDto, String> {
 
 /// 查询登录状态（对应启动时静默 Warmup 与账户页"查询登录状态"按钮）。
 /// 查询使用已存密钥；ipatool keyring 无账号时视为未登录。
-#[tauri::command]
+#[tauri::command(async)]
 pub fn auth_info(state: State<'_, AppState>) -> Result<AuthInfoDto, String> {
     let exe_path = crate::resolver::resolve_executable_path(&state);
     let passphrase = state::get_passphrase();

@@ -121,7 +121,7 @@ pub fn ipatool_delete_custom(state: State<'_, AppState>) -> Result<(), String> {
     delete_custom(&state)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn ipatool_export(state: State<'_, AppState>) -> Result<String, String> {
     export(&state)
 }
@@ -145,7 +145,7 @@ pub fn legacy_db_exists() -> bool {
 }
 
 /// 导入旧版数据库：关闭当前连接后覆盖，再重新打开（schema 相同，由 core 迁移）。
-#[tauri::command]
+#[tauri::command(async)]
 pub fn legacy_db_import(state: State<'_, AppState>) -> Result<(), String> {
     let source = legacy_db_path().ok_or("未找到旧版数据库")?;
     import_legacy_db(&state, &source)

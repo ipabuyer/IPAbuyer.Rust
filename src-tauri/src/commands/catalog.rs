@@ -40,7 +40,9 @@ fn to_dto(result: SearchResult) -> SearchResultDto {
 /// 搜索 App Store；超时或空响应返回空列表。
 /// 未登录时不合成已购状态（全部为搜索原始状态）。
 /// 搜索完成后刷新筛选窗口的开发者选项（失效选择自动回退）。
-#[tauri::command]
+/// 同步命令默认在主线程执行（三次 HTTP 请求会冻结 UI/光标），
+/// 标记 `(async)` 使其运行在独立线程。
+#[tauri::command(async)]
 pub fn catalog_search(
     app: AppHandle,
     state: State<'_, AppState>,
