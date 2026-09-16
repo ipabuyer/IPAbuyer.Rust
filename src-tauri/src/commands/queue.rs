@@ -20,6 +20,7 @@ use crate::state::AppState;
 #[serde(rename_all = "camelCase")]
 pub struct QueueItemDto {
     pub bundle_id: String,
+    pub platform: String,
     pub app_id: String,
     pub name: String,
     pub developer: String,
@@ -51,6 +52,7 @@ fn status_name(status: crate::core::downloads::DownloadQueueStatus) -> &'static 
 pub(crate) fn item_dto(item: &DownloadQueueItem) -> QueueItemDto {
     QueueItemDto {
         bundle_id: item.bundle_id.clone(),
+        platform: item.platform.clone(),
         app_id: item.app_id.clone(),
         name: item.name.clone(),
         developer: item.developer.clone(),
@@ -67,6 +69,7 @@ pub(crate) fn item_dto(item: &DownloadQueueItem) -> QueueItemDto {
 pub fn queue_add(
     state: State<'_, AppState>,
     bundle_id: String,
+    platform: Option<String>,
     app_id: Option<String>,
     name: Option<String>,
     developer: Option<String>,
@@ -82,6 +85,10 @@ pub fn queue_add(
         artwork_url,
         price,
         version,
+        platform: crate::core::platform::normalize(
+            platform.as_deref().unwrap_or(crate::core::platform::IOS),
+        )
+        .to_string(),
         purchased: String::new(),
     };
     let result = state.queue.queue.add_or_update_from_search_result(
@@ -143,6 +150,7 @@ pub fn queue_start(app: AppHandle, state: State<'_, AppState>) -> Result<(), Str
                 on_chunk,
                 cancel,
                 detailed_sink,
+                &item.platform,
             )
         };
 

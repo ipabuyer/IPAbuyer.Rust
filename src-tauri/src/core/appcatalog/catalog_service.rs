@@ -32,7 +32,8 @@ pub fn normalize_country_code(
 }
 
 /// 搜索目录：请求 iTunes Search 并解析为带购买状态的结果列表。
-/// 超时或响应为空返回 `None`。
+/// 同时检索 iOS（`entity=software`）与 Mac（`entity=macSoftware`）两个
+/// App Store，iOS 结果在前；两侧都超时/为空时返回 `None`。
 pub fn search_catalog(
     app_name: &str,
     limit: i64,
@@ -41,7 +42,42 @@ pub fn search_catalog(
     purchased_apps: &HashMap<String, String>,
 ) -> Option<Vec<SearchResult>> {
     let country = normalize_country_code(Some(country_code), is_valid_country);
-    let response = search_client::search(app_name, limit, &country);
+    let ios = search_one(
+        app_name,
+        limit,
+        &country,
+        search_client::ENTITY_SOFTWARE,
+        crate::core::platform::IOS,
+        purchased_apps,
+    );
+    let macos = search_one(
+        app_name,
+        limit,
+        &country,
+        search_client::ENTITY_MAC_SOFTWARE,
+        crate::core::platform::MACOS,
+        purchased_apps,
+    );
+
+    match (ios, macos) {
+        (None, None) => None,
+        (ios, macos) => Some(merge_results(
+            ios.unwrap_or_default(),
+            macos.unwrap_or_default(),
+        )),
+    }
+}
+
+/// 检索单一实体并解析为带购买状态的结果；超时或响应为空返回 `None`。
+fn search_one(
+    app_name: &str,
+    limit: i64,
+    country_code: &str,
+    entity: &str,
+    platform: &str,
+    purchased_apps: &HashMap<String, String>,
+) -> Option<Vec<SearchResult>> {
+    let response = search_client::search(app_name, limit, country_code, entity);
     if response.timed_out {
         return None;
     }
@@ -51,7 +87,14 @@ pub fn search_catalog(
         return None;
     }
 
-    search_parser::parse(&payload, purchased_apps)
+    search_parser::parse(&payload, platform, purchased_apps)
+}
+
+/// 合并两个平台的结果：iOS 在前、macOS 在后（同类内保持 API 返回顺序）。
+fn merge_results(ios: Vec<SearchResult>, macos: Vec<SearchResult>) -> Vec<SearchResult> {
+    let mut merged = ios;
+    merged.extend(macos);
+    merged
 }
 
 #[cfg(test)]
@@ -67,5 +110,30 @@ mod tests {
             normalize_country_code(Some("xx"), &|code| code == "us"),
             "cn"
         );
+    }
+
+    #[test]
+    fn merge_results_puts_ios_before_macos() {
+        let item = |bundle_id: &str, platform: &str| SearchResult {
+            bundle_id: bundle_id.to_string(),
+            id: None,
+            name: None,
+            developer: None,
+            artwork_url: None,
+            price: "free".to_string(),
+            version: None,
+            platform: platform.to_string(),
+            purchased: "not_purchased".to_string(),
+        };
+
+        let merged = merge_results(
+            vec![item("com.ios", crate::core::platform::IOS)],
+            vec![item("com.mac", crate::core::platform::MACOS)],
+        );
+
+        assert_eq!(merged.len(), 2);
+        assert_eq!(merged[0].bundle_id, "com.ios");
+        assert_eq!(merged[1].bundle_id, "com.mac");
+        assert_eq!(merged[1].platform, "macos");
     }
 }

@@ -14,8 +14,13 @@ const USER_AGENT: &str = "IPAbuyer/1.0";
 /// 搜索请求总超时（对齐 C# HttpClient 2 分钟超时）。
 const SEARCH_TIMEOUT: Duration = Duration::from_secs(120);
 
+/// iTunes Search entity：iOS App Store 与 Mac App Store 是两个独立实体，
+/// 同一请求只能选其一（Mac 结果需单独请求后合并）。
+pub const ENTITY_SOFTWARE: &str = "software";
+pub const ENTITY_MAC_SOFTWARE: &str = "macSoftware";
+
 /// 搜索 App Store；结果体在 `output`，HTTP/网络错误在 `error`。
-pub fn search(name: &str, limit: i64, country_code: &str) -> IpatoolResult {
+pub fn search(name: &str, limit: i64, country_code: &str, entity: &str) -> IpatoolResult {
     let query = name.trim();
     if query.is_empty() {
         return IpatoolResult::from_error_message(
@@ -48,7 +53,7 @@ pub fn search(name: &str, limit: i64, country_code: &str) -> IpatoolResult {
     match agent
         .get(SEARCH_ENDPOINT)
         .query("term", query)
-        .query("entity", "software")
+        .query("entity", entity)
         .query("limit", &limit.to_string())
         .query("country", &country)
         .call()
@@ -93,7 +98,7 @@ mod tests {
 
     #[test]
     fn search_requires_non_empty_name() {
-        let result = search("   ", 200, "cn");
+        let result = search("   ", 200, "cn", ENTITY_SOFTWARE);
 
         assert!(!result.timed_out);
         assert_eq!(

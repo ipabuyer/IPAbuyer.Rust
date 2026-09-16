@@ -48,6 +48,7 @@ pub fn purchase(
     bundle_id: String,
     price: String,
     purchased: String,
+    platform: String,
 ) -> Result<PurchaseDto, String> {
     let bundle_id = bundle_id.trim().to_string();
     if bundle_id.is_empty() {
@@ -82,7 +83,7 @@ pub fn purchase(
     };
 
     if is_mock {
-        mark_purchased(&state, &bundle_id, &account)?;
+        mark_purchased(&state, &bundle_id, &account, &platform)?;
         push_log(&state, "success", "Purchase/Log/Success", &[&bundle_id]);
         return Ok(PurchaseDto {
             bundle_id,
@@ -102,9 +103,9 @@ pub fn purchase(
         let mut sink = |log: crate::core::purchases::sync_service::LogMessage| {
             state.log_buffer.push((&log).into());
         };
-        client.purchase_app(&bundle_id, Some(&passphrase), &cancel, Some(&mut sink))
+        client.purchase_app(&bundle_id, Some(&passphrase), &cancel, Some(&mut sink), &platform)
     } else {
-        client.purchase_app(&bundle_id, Some(&passphrase), &cancel, None)
+        client.purchase_app(&bundle_id, Some(&passphrase), &cancel, None, &platform)
     };
 
     let result = outcome_result.map_err(|e| format!("购买命令执行失败: {e:?}"))?;
@@ -123,7 +124,7 @@ pub fn purchase(
             | PurchaseOutcome::AlreadyOwned
             | PurchaseOutcome::NeedsOwnedConfirmation
     ) {
-        mark_purchased(&state, &bundle_id, &account)?;
+        mark_purchased(&state, &bundle_id, &account, &platform)?;
     }
 
     match outcome {
@@ -146,16 +147,26 @@ pub fn purchase(
     })
 }
 
-fn mark_purchased(state: &AppState, bundle_id: &str, account: &str) -> Result<(), String> {
+fn mark_purchased(
+    state: &AppState,
+    bundle_id: &str,
+    account: &str,
+    platform: &str,
+) -> Result<(), String> {
     let db = state.db.lock().unwrap();
     let db = db.as_ref().ok_or("数据库未初始化")?;
-    db.save_purchased_app(bundle_id, account, Some("purchased"))
+    db.save_purchased_app(bundle_id, account, Some("purchased"), platform)
         .map_err(|e| e.to_string())
 }
 
 /// 三点菜单：标记为已购买 / 未购买。
 #[tauri::command]
-pub fn purchases_mark(state: State<'_, AppState>, bundle_id: String, status: String) -> Result<(), String> {
+pub fn purchases_mark(
+    state: State<'_, AppState>,
+    bundle_id: String,
+    status: String,
+    platform: String,
+) -> Result<(), String> {
     let account = state
         .session
         .lock()
@@ -165,13 +176,17 @@ pub fn purchases_mark(state: State<'_, AppState>, bundle_id: String, status: Str
         .ok_or("未登录")?;
     let db = state.db.lock().unwrap();
     let db = db.as_ref().ok_or("数据库未初始化")?;
-    db.save_purchased_app(&bundle_id, &account, Some(status.as_str()))
+    db.save_purchased_app(&bundle_id, &account, Some(status.as_str()), &platform)
         .map_err(|e| e.to_string())
 }
 
 /// 三点菜单：移除标记。
 #[tauri::command]
-pub fn purchases_unmark(state: State<'_, AppState>, bundle_id: String) -> Result<(), String> {
+pub fn purchases_unmark(
+    state: State<'_, AppState>,
+    bundle_id: String,
+    platform: String,
+) -> Result<(), String> {
     let account = state
         .session
         .lock()
@@ -181,7 +196,7 @@ pub fn purchases_unmark(state: State<'_, AppState>, bundle_id: String) -> Result
         .ok_or("未登录")?;
     let db = state.db.lock().unwrap();
     let db = db.as_ref().ok_or("数据库未初始化")?;
-    db.remove_purchased_app(&bundle_id, &account)
+    db.remove_purchased_app(&bundle_id, &account, &platform)
         .map_err(|e| e.to_string())
 }
 

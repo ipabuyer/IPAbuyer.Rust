@@ -116,20 +116,26 @@ impl IpatoolClient {
         )
     }
 
-    /// 购买（获取许可）。
+    /// 购买（获取许可）；`macos` 平台追加 `--platform macos`。
     pub fn purchase_app(
         &self,
         bundle_id: &str,
         passphrase: Option<&str>,
         cancel: &AtomicBool,
         on_log: Option<CommandLogSink>,
+        platform: &str,
     ) -> Result<IpatoolResult, ClientError> {
+        let mut arguments = vec![
+            "purchase".to_string(),
+            "--bundle-identifier".to_string(),
+            bundle_id.to_string(),
+        ];
+        if let Some(value) = crate::core::platform::ipatool_arg(platform) {
+            arguments.push("--platform".to_string());
+            arguments.push(value.to_string());
+        }
         self.execute(
-            vec![
-                "purchase".to_string(),
-                "--bundle-identifier".to_string(),
-                bundle_id.to_string(),
-            ],
+            arguments,
             passphrase,
             Some(DEFAULT_TIMEOUT),
             cancel,
@@ -147,6 +153,7 @@ impl IpatoolClient {
         on_chunk: Option<&(dyn Fn(&str) + Sync)>,
         cancel: &AtomicBool,
         on_log: Option<CommandLogSink>,
+        platform: &str,
     ) -> Result<IpatoolResult, ClientError> {
         if let Err(error) = std::fs::create_dir_all(output_directory) {
             return Ok(IpatoolResult::from_streams(
@@ -166,6 +173,7 @@ impl IpatoolClient {
                 bundle_id,
                 output_directory,
                 passphrase_value,
+                platform,
             ),
             DOWNLOAD_TIMEOUT,
             cancel,
@@ -182,9 +190,15 @@ impl IpatoolClient {
         passphrase: Option<&str>,
         cancel: &AtomicBool,
         on_log: Option<CommandLogSink>,
+        platform: Option<&str>,
     ) -> Result<IpatoolResult, ClientError> {
+        let mut arguments = command_builder::build_list_purchases_arguments(max_results, page);
+        if let Some(value) = platform.and_then(crate::core::platform::ipatool_arg) {
+            arguments.push("--platform".to_string());
+            arguments.push(value.to_string());
+        }
         self.execute(
-            command_builder::build_list_purchases_arguments(max_results, page),
+            arguments,
             passphrase,
             Some(DEFAULT_TIMEOUT),
             cancel,

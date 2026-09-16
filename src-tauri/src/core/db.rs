@@ -1,9 +1,11 @@
 //! 已购买数据库（SQLite，移植自主仓库 `PurchasedAppDb`）。
 //!
-//! schema 与主应用完全兼容：`PurchasedApp(Id, AppID, Account, Status)` +
+//! schema 与主应用兼容并在本仓库扩展平台维度：
+//! `PurchasedApp(Id, AppID, Account, Status, Platform)` +
 //! `SyncState(Account, LastSuccessSyncUtc, LastAttemptSyncUtc)`；
-//! 迁移语义对齐 C# `user_version`：0→1 状态归一化，1→2 owned 并入 purchased。
-//! 账户与 AppID 沿用主应用归一化规则（trim + 小写）。数据库路径由宿主传入。
+//! 迁移语义对齐 C# `user_version`：0→1 状态归一化，1→2 owned 并入 purchased，
+//! 2→3 加 Platform 列（历史记录归 ios）。账户与 AppID 沿用主应用归一化规则
+//! （trim + 小写）。数据库路径由宿主传入。
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -12,11 +14,15 @@ use std::sync::Mutex;
 use chrono::{SecondsFormat, Utc};
 use rusqlite::{Connection, params};
 
+use crate::core::platform;
 use crate::core::purchases::record_status;
 use crate::core::purchases::sync_service::PurchaseStore;
 
 /// 已购买记录的唯一规范状态。
 pub const STATUS_PURCHASED: &str = "purchased";
+
+/// 当前 schema 版本。
+pub const SCHEMA_VERSION: i64 = 3;
 
 /// 数据库错误。
 #[derive(Debug)]
@@ -87,6 +93,7 @@ impl PurchasedAppsDb {
         app_id: &str,
         account: &str,
         status: Option<&str>,
+        platform: &str,
     ) -> Result<()> {
         let status = status.unwrap_or(record_status::PURCHASED);
         let Some(normalized_status) = record_status::try_normalize(Some(status)) else {
@@ -97,43 +104,50 @@ impl PurchasedAppsDb {
         }
 
         let (app_id, account) = (normalize(app_id), normalize(account));
+        let platform = platform::normalize(platform);
         let connection = self.connection.lock().expect("db lock");
         let affected = connection.execute(
             "UPDATE PurchasedApp SET Status = $status
-             WHERE LOWER(TRIM(AppID)) = $appid AND LOWER(TRIM(Account)) = $account",
-            params![normalized_status, app_id, account],
+             WHERE LOWER(TRIM(AppID)) = $appid AND LOWER(TRIM(Account)) = $account
+               AND Platform = $platform",
+            params![normalized_status, app_id, account, platform],
         )?;
         if affected == 0 {
             connection.execute(
-                "INSERT INTO PurchasedApp (AppID, Account, Status)
-                 VALUES ($appid, $account, $status)
-                 ON CONFLICT(AppID, Account) DO UPDATE SET Status = $status",
-                params![app_id, account, normalized_status],
+                "INSERT INTO PurchasedApp (AppID, Account, Status, Platform)
+                 VALUES ($appid, $account, $status, $platform)
+                 ON CONFLICT(AppID, Account, Platform) DO UPDATE SET Status = $status",
+                params![app_id, account, normalized_status, platform],
             )?;
         }
         Ok(())
     }
 
-    /// 获取指定账户的全部已购买应用（按首次出现顺序去重，后写覆盖）。
-    pub fn get_purchased_apps(&self, account: &str) -> Result<Vec<(String, String)>> {
-        let mut list: Vec<(String, String)> = Vec::new();
+    /// 获取指定账户的全部已购买应用 `(app_id, status, platform)`
+    /// （按首次出现顺序去重，后写覆盖）。
+    pub fn get_purchased_apps(&self, account: &str) -> Result<Vec<(String, String, String)>> {
+        let mut list: Vec<(String, String, String)> = Vec::new();
         if account.trim().is_empty() {
             return Ok(list);
         }
 
         let connection = self.connection.lock().expect("db lock");
         let mut statement = connection.prepare(
-            "SELECT AppID, Status FROM PurchasedApp
+            "SELECT AppID, Status, Platform FROM PurchasedApp
              WHERE LOWER(TRIM(Account)) = $account ORDER BY Id",
         )?;
         let rows = statement.query_map(params![normalize(account)], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
         })?;
 
         // 大小写不敏感去重：后写覆盖（对齐 C# 字典语义），保留首次出现顺序。
         let mut index_by_key: HashMap<String, usize> = HashMap::new();
         for row in rows {
-            let (app_id, status) = row?;
+            let (app_id, status, db_platform) = row?;
             let app_id = normalize(&app_id);
             if app_id.is_empty() {
                 continue;
@@ -143,11 +157,12 @@ impl PurchasedAppsDb {
             } else {
                 status
             };
-            match index_by_key.get(&app_id) {
+            let key = platform::purchase_key(&db_platform, &app_id);
+            match index_by_key.get(&key) {
                 Some(&index) => list[index].1 = status,
                 None => {
-                    index_by_key.insert(app_id.clone(), list.len());
-                    list.push((app_id, status));
+                    index_by_key.insert(key, list.len());
+                    list.push((app_id, status, platform::normalize(&db_platform).to_string()));
                 }
             }
         }
@@ -155,7 +170,12 @@ impl PurchasedAppsDb {
     }
 
     /// 查询单个 App 状态；未记录返回 `None`。
-    pub fn get_app_status(&self, app_id: &str, account: &str) -> Result<Option<String>> {
+    pub fn get_app_status(
+        &self,
+        app_id: &str,
+        account: &str,
+        platform: &str,
+    ) -> Result<Option<String>> {
         if app_id.trim().is_empty() || account.trim().is_empty() {
             return Ok(None);
         }
@@ -164,9 +184,14 @@ impl PurchasedAppsDb {
         let mut statement = connection.prepare(
             "SELECT Status FROM PurchasedApp
              WHERE LOWER(TRIM(AppID)) = $appid AND LOWER(TRIM(Account)) = $account
+               AND Platform = $platform
              ORDER BY Id DESC LIMIT 1",
         )?;
-        let mut rows = statement.query(params![normalize(app_id), normalize(account)])?;
+        let mut rows = statement.query(params![
+            normalize(app_id),
+            normalize(account),
+            platform::normalize(platform)
+        ])?;
         if let Some(row) = rows.next()? {
             return Ok(Some(row.get(0)?));
         }
@@ -174,7 +199,12 @@ impl PurchasedAppsDb {
     }
 
     /// 删除指定 App 的记录。
-    pub fn remove_purchased_app(&self, app_id: &str, account: &str) -> Result<()> {
+    pub fn remove_purchased_app(
+        &self,
+        app_id: &str,
+        account: &str,
+        platform: &str,
+    ) -> Result<()> {
         if app_id.trim().is_empty() || account.trim().is_empty() {
             return Ok(());
         }
@@ -182,8 +212,9 @@ impl PurchasedAppsDb {
         let connection = self.connection.lock().expect("db lock");
         connection.execute(
             "DELETE FROM PurchasedApp
-             WHERE LOWER(TRIM(AppID)) = $appid AND LOWER(TRIM(Account)) = $account",
-            params![normalize(app_id), normalize(account)],
+             WHERE LOWER(TRIM(AppID)) = $appid AND LOWER(TRIM(Account)) = $account
+               AND Platform = $platform",
+            params![normalize(app_id), normalize(account), platform::normalize(platform)],
         )?;
         Ok(())
     }
@@ -218,12 +249,18 @@ impl PurchasedAppsDb {
     }
 
     /// 批量标记为已购买（单事务 upsert），返回写入条数。
-    pub fn bulk_mark_purchased(&self, bundle_ids: &[String], account: &str) -> Result<i64> {
+    pub fn bulk_mark_purchased(
+        &self,
+        bundle_ids: &[String],
+        account: &str,
+        platform: &str,
+    ) -> Result<i64> {
         if bundle_ids.is_empty() || account.trim().is_empty() {
             return Ok(0);
         }
 
         let account = normalize(account);
+        let platform = platform::normalize(platform);
         let connection = self.connection.lock().expect("db lock");
         let mut written = 0_usize;
         let transaction = connection.unchecked_transaction()?;
@@ -232,10 +269,10 @@ impl PurchasedAppsDb {
                 continue;
             }
             written += transaction.execute(
-                "INSERT INTO PurchasedApp (AppID, Account, Status)
-                 VALUES ($appid, $account, $status)
-                 ON CONFLICT(AppID, Account) DO UPDATE SET Status = $status",
-                params![normalize(bundle_id), account, STATUS_PURCHASED],
+                "INSERT INTO PurchasedApp (AppID, Account, Status, Platform)
+                 VALUES ($appid, $account, $status, $platform)
+                 ON CONFLICT(AppID, Account, Platform) DO UPDATE SET Status = $status",
+                params![normalize(bundle_id), account, STATUS_PURCHASED, platform],
             )?;
         }
         transaction.commit()?;
@@ -283,9 +320,9 @@ impl PurchasedAppsDb {
 }
 
 impl PurchaseStore for PurchasedAppsDb {
-    fn bulk_mark_purchased(&mut self, bundle_ids: &[String], account: &str) {
+    fn bulk_mark_purchased(&mut self, bundle_ids: &[String], account: &str, platform: &str) {
         // 同步路径对持久化错误尽力而为：错误已由调用方日志记录。
-        let _ = PurchasedAppsDb::bulk_mark_purchased(self, bundle_ids, account);
+        let _ = PurchasedAppsDb::bulk_mark_purchased(self, bundle_ids, account, platform);
     }
 
     fn record_sync_attempt(&mut self, account: &str, succeeded: bool) {
@@ -293,10 +330,11 @@ impl PurchaseStore for PurchasedAppsDb {
     }
 }
 
-/// schema 迁移（对齐 C# `MigrateSchema`）：0→1 状态归一化，1→2 owned 并入 purchased。
+/// schema 迁移（对齐 C# `MigrateSchema` 并扩展）：0→1 状态归一化，
+/// 1→2 owned 并入 purchased，2→3 加 Platform 列（历史记录归 ios）。
 fn migrate_schema(connection: &Connection) -> Result<()> {
     let version: i64 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-    if version >= 2 {
+    if version >= SCHEMA_VERSION {
         return Ok(());
     }
 
@@ -330,7 +368,28 @@ fn migrate_schema(connection: &Connection) -> Result<()> {
         )?;
     }
 
-    transaction.execute_batch("PRAGMA user_version = 2")?;
+    // 2→3：加 Platform 列。UNIQUE(AppID, Account) 不含平台，需重建表；
+    // 历史记录全部归 iOS（旧版本只支持 iOS）。
+    if version < 3 {
+        transaction.execute_batch(
+            "CREATE TABLE PurchasedApp_v3 (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    AppID TEXT NOT NULL,
+                    Account TEXT NOT NULL,
+                    Status TEXT NOT NULL,
+                    Platform TEXT NOT NULL DEFAULT 'ios',
+                    UNIQUE(AppID, Account, Platform)
+                );
+                INSERT INTO PurchasedApp_v3 (Id, AppID, Account, Status, Platform)
+                    SELECT Id, AppID, Account, Status, 'ios' FROM PurchasedApp;
+                DROP TABLE PurchasedApp;
+                ALTER TABLE PurchasedApp_v3 RENAME TO PurchasedApp;
+                CREATE INDEX IF NOT EXISTS idx_appid_account_platform
+                    ON PurchasedApp(AppID, Account, Platform);",
+        )?;
+    }
+
+    transaction.execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION}"))?;
     transaction.commit()?;
     Ok(())
 }
@@ -353,7 +412,7 @@ mod tests {
     }
 
     #[test]
-    fn open_fresh_database_creates_schema_at_version_2() {
+    fn open_fresh_database_creates_schema_at_version_3() {
         let path = unique_db_path("fresh");
         let db = PurchasedAppsDb::open(&path).unwrap();
 
@@ -362,7 +421,7 @@ mod tests {
         let version: i64 = connection
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 2);
+        assert_eq!(version, SCHEMA_VERSION);
         let _ = std::fs::remove_file(&path);
     }
 
@@ -396,28 +455,79 @@ mod tests {
 
         assert_eq!(db.get_total_count(Some("user")).unwrap(), 3);
         assert_eq!(
-            db.get_app_status("com.purchased", "user")
+            db.get_app_status("com.purchased", "user", platform::IOS)
                 .unwrap()
                 .as_deref(),
             Some("purchased")
         );
         assert_eq!(
-            db.get_app_status("com.owned", "user").unwrap().as_deref(),
-            Some("purchased")
-        );
-        assert_eq!(
-            db.get_app_status("com.localized", "user")
+            db.get_app_status("com.owned", "user", platform::IOS)
                 .unwrap()
                 .as_deref(),
             Some("purchased")
         );
-        assert_eq!(db.get_app_status("com.dirty", "user").unwrap(), None);
+        assert_eq!(
+            db.get_app_status("com.localized", "user", platform::IOS)
+                .unwrap()
+                .as_deref(),
+            Some("purchased")
+        );
+        assert_eq!(
+            db.get_app_status("com.dirty", "user", platform::IOS)
+                .unwrap(),
+            None
+        );
 
         let connection = Connection::open(&path).unwrap();
         let version: i64 = connection
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 2);
+        assert_eq!(version, SCHEMA_VERSION);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn migration_from_v2_keeps_rows_as_ios() {
+        // v2 库（旧版 WinUI3/旧版本应用）升级后记录保留并归入 ios 平台。
+        let path = unique_db_path("migrate-v2");
+        {
+            let connection = Connection::open(&path).unwrap();
+            connection
+                .execute_batch(
+                    r#"
+                    CREATE TABLE PurchasedApp (
+                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        AppID TEXT NOT NULL,
+                        Account TEXT NOT NULL,
+                        Status TEXT NOT NULL,
+                        UNIQUE(AppID, Account)
+                    );
+                    CREATE TABLE SyncState (
+                        Account TEXT PRIMARY KEY,
+                        LastSuccessSyncUtc TEXT NOT NULL,
+                        LastAttemptSyncUtc TEXT NOT NULL
+                    );
+                    INSERT INTO PurchasedApp (AppID, Account, Status)
+                        VALUES ('com.legacy', 'user', 'purchased');
+                    PRAGMA user_version = 2;
+                    "#,
+                )
+                .unwrap();
+        }
+
+        let db = PurchasedAppsDb::open(&path).unwrap();
+
+        assert_eq!(
+            db.get_app_status("com.legacy", "user", platform::IOS)
+                .unwrap()
+                .as_deref(),
+            Some("purchased")
+        );
+        assert_eq!(
+            db.get_app_status("com.legacy", "user", platform::MACOS)
+                .unwrap(),
+            None
+        );
         let _ = std::fs::remove_file(&path);
     }
 
@@ -426,25 +536,62 @@ mod tests {
         let path = unique_db_path("crud");
         let db = PurchasedAppsDb::open(&path).unwrap();
 
-        db.save_purchased_app("  COM.App ", " User@Example.com ", None)
+        db.save_purchased_app("  COM.App ", " User@Example.com ", None, platform::IOS)
             .unwrap();
         assert_eq!(
-            db.get_app_status("com.app", "user@example.com")
+            db.get_app_status("com.app", "user@example.com", platform::IOS)
                 .unwrap()
                 .as_deref(),
             Some("purchased")
         );
 
         // 大小写不敏感更新 + 后写覆盖。
-        db.save_purchased_app("com.app", "USER@example.com", Some("owned"))
+        db.save_purchased_app("com.app", "USER@example.com", Some("owned"), platform::IOS)
             .unwrap();
         let apps = db.get_purchased_apps("user@example.com").unwrap();
-        assert_eq!(apps, vec![("com.app".to_string(), "purchased".to_string())]);
+        assert_eq!(
+            apps,
+            vec![(
+                "com.app".to_string(),
+                "purchased".to_string(),
+                "ios".to_string()
+            )]
+        );
         assert_eq!(db.get_total_count(None).unwrap(), 1);
 
-        db.remove_purchased_app("com.app", "user@example.com")
+        db.remove_purchased_app("com.app", "user@example.com", platform::IOS)
             .unwrap();
         assert_eq!(db.get_total_count(None).unwrap(), 0);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn same_bundle_id_can_be_purchased_on_both_platforms() {
+        let path = unique_db_path("platforms");
+        let db = PurchasedAppsDb::open(&path).unwrap();
+
+        db.save_purchased_app("com.wechat", "user", None, platform::IOS)
+            .unwrap();
+        db.save_purchased_app("com.wechat", "user", None, platform::MACOS)
+            .unwrap();
+        // iOS 记录移除后 Mac 记录不受影响。
+        db.remove_purchased_app("com.wechat", "user", platform::IOS)
+            .unwrap();
+
+        assert_eq!(
+            db.get_app_status("com.wechat", "user", platform::IOS)
+                .unwrap(),
+            None
+        );
+        assert_eq!(
+            db.get_app_status("com.wechat", "user", platform::MACOS)
+                .unwrap()
+                .as_deref(),
+            Some("purchased")
+        );
+        let apps = db.get_purchased_apps("user").unwrap();
+        assert_eq!(apps.len(), 1);
+        assert_eq!(apps[0].2, platform::MACOS);
         let _ = std::fs::remove_file(&path);
     }
 
@@ -454,7 +601,7 @@ mod tests {
         let db = PurchasedAppsDb::open(&path).unwrap();
 
         assert!(matches!(
-            db.save_purchased_app("com.app", "user", Some("junk")),
+            db.save_purchased_app("com.app", "user", Some("junk"), platform::IOS),
             Err(DbError::InvalidStatus)
         ));
         let _ = std::fs::remove_file(&path);
@@ -465,8 +612,10 @@ mod tests {
         let path = unique_db_path("clear");
         let db = PurchasedAppsDb::open(&path).unwrap();
 
-        db.save_purchased_app("com.a", "user1", None).unwrap();
-        db.save_purchased_app("com.b", "user2", None).unwrap();
+        db.save_purchased_app("com.a", "user1", None, platform::IOS)
+            .unwrap();
+        db.save_purchased_app("com.b", "user2", None, platform::IOS)
+            .unwrap();
 
         db.clear_purchased_apps(Some("user1")).unwrap();
         assert_eq!(db.get_total_count(None).unwrap(), 1);
@@ -480,19 +629,21 @@ mod tests {
     fn bulk_mark_upserts_in_single_pass() {
         let path = unique_db_path("bulk");
         let db = PurchasedAppsDb::open(&path).unwrap();
-        db.save_purchased_app("com.existing", "user", Some("owned"))
+        db.save_purchased_app("com.existing", "user", Some("owned"), platform::IOS)
             .unwrap();
 
         let bundle_ids: Vec<String> = ["com.existing", "com.new", "  ", ""]
             .iter()
             .map(|id| id.to_string())
             .collect();
-        let written = db.bulk_mark_purchased(&bundle_ids, "user").unwrap();
+        let written = db
+            .bulk_mark_purchased(&bundle_ids, "user", platform::IOS)
+            .unwrap();
 
         assert_eq!(written, 2);
         assert_eq!(db.get_total_count(Some("user")).unwrap(), 2);
         assert_eq!(
-            db.get_app_status("com.existing", "user")
+            db.get_app_status("com.existing", "user", platform::IOS)
                 .unwrap()
                 .as_deref(),
             Some("purchased")
@@ -536,7 +687,7 @@ mod tests {
         let mut db = PurchasedAppsDb::open(&path).unwrap();
 
         let bundle_ids = vec!["com.store".to_string()];
-        PurchaseStore::bulk_mark_purchased(&mut db, &bundle_ids, "user");
+        PurchaseStore::bulk_mark_purchased(&mut db, &bundle_ids, "user", platform::IOS);
         PurchaseStore::record_sync_attempt(&mut db, "user", true);
 
         assert_eq!(db.get_total_count(Some("user")).unwrap(), 1);

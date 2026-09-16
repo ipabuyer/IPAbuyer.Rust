@@ -48,15 +48,23 @@ pub fn is_can_purchase(status: Option<&str>) -> bool {
     }
 }
 
+/// 已购查找的组合键：平台与 bundleId 共同确定一条商店条目。
+pub fn purchase_key(platform: &str, bundle_id: &str) -> String {
+    crate::core::platform::purchase_key(platform, bundle_id)
+}
+
 /// 根据数据库记录推导搜索结果状态；无记录时按价格推导。
+/// `purchased_apps` 的键为 [`purchase_key`] 组合键。
 pub fn resolve_search_status(
+    platform: Option<&str>,
     bundle_id: Option<&str>,
     price: Option<&str>,
     purchased_apps: &HashMap<String, String>,
 ) -> &'static str {
     if let Some(bundle_id) = bundle_id {
         if !bundle_id.trim().is_empty() {
-            if let Some(status) = purchased_apps.get(bundle_id) {
+            let key = purchase_key(platform.unwrap_or(crate::core::platform::IOS), bundle_id);
+            if let Some(status) = purchased_apps.get(&key) {
                 return normalize_stored_status(Some(status));
             }
         }
@@ -150,19 +158,37 @@ mod tests {
 
     #[test]
     fn resolve_search_status_prefers_database_records() {
-        let records = purchased_apps(&[("com.a", "owned"), ("com.b", "purchased")]);
+        let records = purchased_apps(&[
+            (purchase_key("ios", "com.a").as_str(), "owned"),
+            (purchase_key("ios", "com.b").as_str(), "purchased"),
+        ]);
 
         assert_eq!(
-            resolve_search_status(Some("com.a"), Some("0"), &records),
+            resolve_search_status(Some("ios"), Some("com.a"), Some("0"), &records),
             STATUS_PURCHASED
         );
         assert_eq!(
-            resolve_search_status(Some("com.b"), Some("6.00"), &records),
+            resolve_search_status(Some("ios"), Some("com.b"), Some("6.00"), &records),
             STATUS_PURCHASED
         );
         assert_eq!(
-            resolve_search_status(Some("com.missing"), Some("6.00"), &records),
+            resolve_search_status(Some("ios"), Some("com.missing"), Some("6.00"), &records),
             STATUS_PURCHASE_BLOCKED
+        );
+    }
+
+    #[test]
+    fn resolve_search_status_is_platform_scoped() {
+        // 同一 bundleId 在两个商店是不同条目：仅 Mac 记录不应污染 iOS 条目。
+        let records = purchased_apps(&[(purchase_key("macos", "com.a").as_str(), "purchased")]);
+
+        assert_eq!(
+            resolve_search_status(Some("macos"), Some("com.a"), Some("0"), &records),
+            STATUS_PURCHASED
+        );
+        assert_eq!(
+            resolve_search_status(Some("ios"), Some("com.a"), Some("0"), &records),
+            STATUS_NOT_PURCHASED
         );
     }
 

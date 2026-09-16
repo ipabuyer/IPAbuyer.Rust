@@ -19,6 +19,7 @@ pub struct SearchResultDto {
     pub artwork_url: Option<String>,
     pub price: String,
     pub version: Option<String>,
+    pub platform: String,
     pub purchased: String,
 }
 
@@ -31,6 +32,7 @@ fn to_dto(result: SearchResult) -> SearchResultDto {
         artwork_url: result.artwork_url,
         price: result.price,
         version: result.version,
+        platform: result.platform,
         purchased: result.purchased,
     }
 }
@@ -60,6 +62,7 @@ pub fn catalog_search(
         )
     };
 
+    // 已购查找键为「平台:bundleId」组合键（同一 bundleId 在两个商店是不同条目）。
     let purchased: HashMap<String, String> = match &account {
         Some(account) => state
             .db
@@ -70,6 +73,9 @@ pub fn catalog_search(
             .get_purchased_apps(account)
             .map_err(|e| e.to_string())?
             .into_iter()
+            .map(|(app_id, status, platform)| {
+                (crate::core::platform::purchase_key(&platform, &app_id), status)
+            })
             .collect(),
         None => HashMap::new(),
     };

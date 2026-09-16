@@ -86,7 +86,10 @@ impl DownloadQueueService {
         }
 
         let mut items = self.items.lock().expect("queue lock");
-        if let Some(existing) = items.iter_mut().find(|item| item.bundle_id == bundle_id) {
+        if let Some(existing) = items
+            .iter_mut()
+            .find(|item| item.bundle_id == bundle_id && item.platform == app.platform)
+        {
             existing.app_id = app.id.clone().unwrap_or_else(|| existing.app_id.clone());
             existing.name = app.name.clone().unwrap_or_else(|| existing.name.clone());
             existing.developer = app
@@ -133,7 +136,7 @@ impl DownloadQueueService {
             };
         }
 
-        let mut item = DownloadQueueItem::new(&bundle_id);
+        let mut item = DownloadQueueItem::new(&bundle_id, &app.platform);
         item.app_id = app.id.clone().unwrap_or_default();
         item.name = app.name.clone().unwrap_or_else(|| bundle_id.clone());
         item.developer = app.developer.clone().unwrap_or_default();
@@ -228,7 +231,8 @@ impl DownloadQueueService {
 
         let mut completed = 0_i32;
         let mut processed = 0_i32;
-        let mut processed_bundle_ids: HashSet<String> = HashSet::new();
+        // 条目身份 = (平台, bundleId)：同一 App 在两个商店是不同条目。
+        let mut processed_keys: HashSet<String> = HashSet::new();
         let mut queue_canceled = false;
 
         loop {
@@ -245,7 +249,11 @@ impl DownloadQueueService {
             let index = {
                 let items = self.items.lock().expect("queue lock");
                 items.iter().position(|item| {
-                    !processed_bundle_ids.contains(&item.bundle_id) && is_runnable_item(item)
+                    !processed_keys
+                        .contains(&crate::core::platform::purchase_key(
+                            &item.platform, &item.bundle_id,
+                        ))
+                        && is_runnable_item(item)
                 })
             };
             let Some(index) = index else { break };
@@ -255,10 +263,14 @@ impl DownloadQueueService {
                 items[index].status = DownloadQueueStatus::Downloading;
                 items[index].clone()
             };
-            processed_bundle_ids.insert(item.bundle_id.clone());
+            processed_keys.insert(crate::core::platform::purchase_key(
+                &item.platform,
+                &item.bundle_id,
+            ));
             processed += 1;
             update_stage(
                 &self.items,
+                &item.platform,
                 &item.bundle_id,
                 "DownloadQueue/Status/Downloading",
                 "DownloadQueue/Log/Downloading",
@@ -269,6 +281,7 @@ impl DownloadQueueService {
 
             if is_mock {
                 self.finish_item(
+                    &item.platform,
                     &item.bundle_id,
                     DownloadQueueStatus::Success,
                     "DownloadQueue/Status/Success",
@@ -285,6 +298,7 @@ impl DownloadQueueService {
 
             let context = Arc::new(ChunkContext::new(
                 &self.items,
+                &item.platform,
                 &item.bundle_id,
                 &item.name,
                 cancel,
@@ -301,6 +315,7 @@ impl DownloadQueueService {
             if flush.requesting_license {
                 update_stage(
                     &self.items,
+                    &item.platform,
                     &item.bundle_id,
                     "DownloadQueue/Status/RequestingLicense",
                     "DownloadQueue/Log/RequestingLicense",
@@ -316,6 +331,7 @@ impl DownloadQueueService {
             match run_result {
                 Err(ClientError::Canceled) => {
                     self.finish_item(
+                        &item.platform,
                         &item.bundle_id,
                         DownloadQueueStatus::Canceled,
                         "DownloadQueue/Status/Canceled",
@@ -336,6 +352,7 @@ impl DownloadQueueService {
                 Ok(result) => {
                     if result_parser::is_success(&result) {
                         self.finish_item(
+                            &item.platform,
                             &item.bundle_id,
                             DownloadQueueStatus::Success,
                             "DownloadQueue/Status/Success",
@@ -351,6 +368,7 @@ impl DownloadQueueService {
                         match result_parser::get_error_message(&result) {
                             NormalizedText::Raw(text) => {
                                 self.finish_item(
+                                    &item.platform,
                                     &item.bundle_id,
                                     DownloadQueueStatus::Failed,
                                     &text,
@@ -362,7 +380,12 @@ impl DownloadQueueService {
                                 ));
                             }
                             NormalizedText::Keyed { key, args } => {
-                                self.finish_item(&item.bundle_id, DownloadQueueStatus::Failed, key);
+                                self.finish_item(
+                                    &item.platform,
+                                    &item.bundle_id,
+                                    DownloadQueueStatus::Failed,
+                                    key,
+                                );
                                 let log_key = match key {
                                     "DownloadQueue/Error/Timeout" => {
                                         "DownloadQueue/Log/FailedTimeout"
@@ -402,6 +425,7 @@ impl DownloadQueueService {
 struct ChunkContext<'a> {
     items: &'a Mutex<Vec<DownloadQueueItem>>,
     bundle_id: String,
+    platform: String,
     name: String,
     cancel: &'a AtomicBool,
     parser: Mutex<DownloadOutputParser>,
@@ -411,6 +435,7 @@ struct ChunkContext<'a> {
 impl<'a> ChunkContext<'a> {
     fn new(
         items: &'a Mutex<Vec<DownloadQueueItem>>,
+        platform: &str,
         bundle_id: &str,
         name: &str,
         cancel: &'a AtomicBool,
@@ -418,6 +443,7 @@ impl<'a> ChunkContext<'a> {
         Self {
             items,
             bundle_id: bundle_id.to_string(),
+            platform: platform.to_string(),
             name: name.to_string(),
             cancel,
             parser: Mutex::new(DownloadOutputParser::new()),
@@ -450,10 +476,9 @@ impl<'a> ChunkContext<'a> {
 
     fn set_stage(&self, stage_key: &str) {
         let mut items = self.items.lock().expect("queue lock");
-        if let Some(item) = items
-            .iter_mut()
-            .find(|item| item.bundle_id == self.bundle_id)
-        {
+        if let Some(item) = items.iter_mut().find(|item| {
+            item.bundle_id == self.bundle_id && item.platform == self.platform
+        }) {
             if item.last_message != stage_key {
                 item.last_message = stage_key.to_string();
             }
@@ -474,9 +499,12 @@ impl<'a> ChunkContext<'a> {
 }
 
 impl DownloadQueueService {
-    fn finish_item(&self, bundle_id: &str, status: DownloadQueueStatus, message: &str) {
+    fn finish_item(&self, platform: &str, bundle_id: &str, status: DownloadQueueStatus, message: &str) {
         let mut items = self.items.lock().expect("queue lock");
-        if let Some(item) = items.iter_mut().find(|item| item.bundle_id == bundle_id) {
+        if let Some(item) = items
+            .iter_mut()
+            .find(|item| item.bundle_id == bundle_id && item.platform == platform)
+        {
             item.status = status;
             item.last_message = message.to_string();
         }
@@ -492,6 +520,7 @@ fn is_runnable_item(item: &DownloadQueueItem) -> bool {
 
 fn update_stage(
     items: &Mutex<Vec<DownloadQueueItem>>,
+    platform: &str,
     bundle_id: &str,
     stage_key: &str,
     log_key: &'static str,
@@ -501,7 +530,10 @@ fn update_stage(
 ) {
     {
         let mut items = items.lock().expect("queue lock");
-        if let Some(item) = items.iter_mut().find(|item| item.bundle_id == bundle_id) {
+        if let Some(item) = items
+            .iter_mut()
+            .find(|item| item.bundle_id == bundle_id && item.platform == platform)
+        {
             if item.last_message == stage_key {
                 return;
             }
@@ -523,6 +555,10 @@ mod tests {
     use std::sync::Arc;
 
     fn search_result(bundle_id: &str) -> SearchResult {
+        search_result_on(bundle_id, crate::core::platform::IOS)
+    }
+
+    fn search_result_on(bundle_id: &str, platform: &str) -> SearchResult {
         SearchResult {
             bundle_id: bundle_id.to_string(),
             id: Some("1".to_string()),
@@ -531,6 +567,7 @@ mod tests {
             artwork_url: None,
             price: "free".to_string(),
             version: Some("1.0".to_string()),
+            platform: platform.to_string(),
             purchased: "purchased".to_string(),
         }
     }
@@ -560,6 +597,7 @@ mod tests {
         );
 
         service.finish_item(
+            crate::core::platform::IOS,
             "com.a",
             DownloadQueueStatus::Success,
             "DownloadQueue/Status/Success",
@@ -587,6 +625,42 @@ mod tests {
             service.add_or_update_from_search_result(&app, &mut noop_log, &mut noop_change),
             AddQueueResult::Ignored
         );
+    }
+
+    #[test]
+    fn same_bundle_id_on_different_platforms_queue_independently() {
+        let service = DownloadQueueService::new();
+
+        assert_eq!(
+            service.add_or_update_from_search_result(
+                &search_result("com.a"),
+                &mut noop_log,
+                &mut noop_change
+            ),
+            AddQueueResult::Added
+        );
+        assert_eq!(
+            service.add_or_update_from_search_result(
+                &search_result_on("com.a", crate::core::platform::MACOS),
+                &mut noop_log,
+                &mut noop_change
+            ),
+            AddQueueResult::Added,
+            "同 bundleId 的 Mac 条目是独立条目，不应合并进 iOS 条目"
+        );
+
+        // 标记 iOS 条目完成不影响 Mac 条目。
+        service.finish_item(
+            crate::core::platform::IOS,
+            "com.a",
+            DownloadQueueStatus::Success,
+            "DownloadQueue/Status/Success",
+        );
+        let items = service.items_snapshot();
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].status, DownloadQueueStatus::Success);
+        assert_eq!(items[1].status, DownloadQueueStatus::Pending);
+        assert_eq!(items[1].platform, crate::core::platform::MACOS);
     }
 
     #[test]
@@ -869,6 +943,7 @@ mod tests {
             &mut noop_change,
         );
         service.finish_item(
+            crate::core::platform::IOS,
             "com.a",
             DownloadQueueStatus::Downloading,
             "DownloadQueue/Status/Downloading",
