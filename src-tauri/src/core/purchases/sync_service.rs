@@ -181,54 +181,59 @@ impl PurchaseSyncService {
             vec![account.to_string()],
         ));
 
+        // iOS 轮不传 --platform（ipatool 缺省平台，兼容自定义 2.5.0）且失败即终止；
+        // iPad/Mac 轮失败仅记录并跳过——自定义 ipatool 2.5.0 没有 --platform 参数。
+        let platforms = [
+            None,
+            Some(crate::core::platform::IPAD),
+            Some(crate::core::platform::MACOS),
+        ];
         let mut synced_total = 0_i64;
         let mut total_total = 0_i64;
+        let mut outcome = COMPLETED;
 
-        // 第一轮：iOS（ipatool 缺省平台，不传 --platform，兼容自定义 2.5.0）。
-        let outcome = match self.run_platform(
-            account,
-            passphrase,
-            fetcher,
-            store,
-            cancel,
-            detailed_log,
-            None,
-            &mut synced_total,
-            &mut total_total,
-            on_progress,
-            on_log,
-        ) {
-            SyncOutcome::Completed { .. } => {
-                // 第二轮：Mac App Store。失败仅记录并跳过——自定义 ipatool
-                // 2.5.0 没有 --platform 参数，不应拖垮整次同步。
-                match self.run_platform(
-                    account,
-                    passphrase,
-                    fetcher,
-                    store,
-                    cancel,
-                    detailed_log,
-                    Some(crate::core::platform::MACOS),
-                    &mut synced_total,
-                    &mut total_total,
-                    on_progress,
-                    on_log,
-                ) {
-                    SyncOutcome::Completed { .. } => COMPLETED,
-                    SyncOutcome::Canceled => SyncOutcome::Canceled,
-                    SyncOutcome::Failed { message } => {
-                        on_log(LogMessage::key(
-                            LogLevel::Tip,
-                            "PurchaseSync/Log/MacosRoundFailed",
-                            vec![message],
-                        ));
-                        COMPLETED
+        for platform in platforms {
+            match self.run_platform(
+                account,
+                passphrase,
+                fetcher,
+                store,
+                cancel,
+                detailed_log,
+                platform,
+                &mut synced_total,
+                &mut total_total,
+                on_progress,
+                on_log,
+            ) {
+                SyncOutcome::Completed { .. } => {}
+                SyncOutcome::Canceled => {
+                    outcome = SyncOutcome::Canceled;
+                    break;
+                }
+                SyncOutcome::Failed { message } => {
+                    if platform.is_none() {
+                        outcome = SyncOutcome::Failed { message };
+                        break;
                     }
-                    other => other,
+                    on_log(LogMessage::key(
+                        LogLevel::Tip,
+                        "PurchaseSync/Log/PlatformRoundFailed",
+                        vec![
+                            crate::core::platform::display_name(
+                                platform.unwrap_or(crate::core::platform::IOS),
+                            )
+                            .to_string(),
+                            message,
+                        ],
+                    ));
+                }
+                other => {
+                    outcome = other;
+                    break;
                 }
             }
-            other => other,
-        };
+        }
 
         let succeeded = matches!(outcome, SyncOutcome::Completed { .. });
         store.record_sync_attempt(account, succeeded);
@@ -371,7 +376,6 @@ mod tests {
     use super::*;
     use crate::core::ipatool::response_parser::NormalizedText;
     use std::sync::Arc;
-    use std::sync::atomic::AtomicUsize;
     use std::sync::mpsc;
 
     #[derive(Default)]
@@ -392,17 +396,14 @@ mod tests {
         }
     }
 
+    /// 平台感知的假拉取器：按平台独立分页；未配置的平台返回空页（轮次直接完成）。
     struct FakeFetcher {
-        pages: Vec<IpatoolResult>,
-        calls: AtomicUsize,
+        pages_by_platform: Vec<(Option<&'static str>, Vec<IpatoolResult>)>,
     }
 
     impl FakeFetcher {
-        fn new(pages: Vec<IpatoolResult>) -> Self {
-            Self {
-                pages,
-                calls: AtomicUsize::new(0),
-            }
+        fn new(pages_by_platform: Vec<(Option<&'static str>, Vec<IpatoolResult>)>) -> Self {
+            Self { pages_by_platform }
         }
 
         fn page(output: &str) -> IpatoolResult {
@@ -425,47 +426,19 @@ mod tests {
             page: i64,
             _passphrase: Option<&str>,
             _cancel: &AtomicBool,
-            _platform: Option<&str>,
-            _on_log: Option<&mut dyn FnMut(LogMessage)>,
-        ) -> Result<IpatoolResult, ClientError> {
-            let index = self.calls.fetch_add(1, Ordering::Relaxed);
-            let _ = page;
-            // 页序耗尽后返回空页（第二轮平台无更多内容即结束）。
-            Ok(self
-                .pages
-                .get(index)
-                .cloned()
-                .unwrap_or_else(|| Self::empty_page()))
-        }
-    }
-
-    /// 平台感知的假拉取器：macOS 轮固定失败（模拟自定义 ipatool 2.5.0）。
-    struct MacosFailingFetcher {
-        ios_pages: Vec<IpatoolResult>,
-        calls: AtomicUsize,
-    }
-
-    impl ListPurchasesFetcher for MacosFailingFetcher {
-        fn fetch(
-            &self,
-            _max_results: i64,
-            _page: i64,
-            _passphrase: Option<&str>,
-            _cancel: &AtomicBool,
             platform: Option<&str>,
             _on_log: Option<&mut dyn FnMut(LogMessage)>,
         ) -> Result<IpatoolResult, ClientError> {
-            if platform == Some(crate::core::platform::MACOS) {
-                return Ok(FakeFetcher::page(
-                    r#"{"level":"error","error":"unknown flag: --platform","success":false}"#,
-                ));
-            }
-            let index = self.calls.fetch_add(1, Ordering::Relaxed);
-            Ok(self
-                .ios_pages
-                .get(index)
-                .cloned()
-                .unwrap_or_else(|| FakeFetcher::empty_page()))
+            let pages = self
+                .pages_by_platform
+                .iter()
+                .find(|(entry_platform, _)| *entry_platform == platform)
+                .map(|(_, pages)| pages);
+            let Some(pages) = pages else {
+                return Ok(Self::empty_page());
+            };
+            let index = (page - 1).max(0) as usize;
+            Ok(pages.get(index).cloned().unwrap_or_else(|| Self::empty_page()))
         }
     }
 
@@ -483,10 +456,10 @@ mod tests {
     fn sync_pages_until_total_reached_and_records_success() {
         let service = PurchaseSyncService::new();
         let mut store = FakeStore::default();
-        let fetcher = FakeFetcher::new(vec![
-            success_page(2, 3, "com.a"),
-            success_page(1, 3, "com.b"),
-        ]);
+        let fetcher = FakeFetcher::new(vec![(
+            None,
+            vec![success_page(2, 3, "com.a"), success_page(1, 3, "com.b")],
+        )]);
         let cancel = AtomicBool::new(false);
         let mut progress_events: Vec<(i64, i64)> = Vec::new();
         let mut logs: Vec<LogMessage> = Vec::new();
@@ -554,8 +527,11 @@ mod tests {
     fn sync_error_page_records_failure_with_message() {
         let service = PurchaseSyncService::new();
         let mut store = FakeStore::default();
-        let fetcher = FakeFetcher::new(vec![FakeFetcher::page(
-            r#"{"level":"error","error":"max results must not exceed 100","success":false}"#,
+        let fetcher = FakeFetcher::new(vec![(
+            None,
+            vec![FakeFetcher::page(
+                r#"{"level":"error","error":"max results must not exceed 100","success":false}"#,
+            )],
         )]);
         let cancel = AtomicBool::new(false);
         let mut ignored = |_: i64, _: i64| {};
@@ -607,12 +583,19 @@ mod tests {
     }
 
     #[test]
-    fn sync_covers_both_platforms_and_tags_records() {
+    fn sync_covers_all_platforms_and_tags_records() {
         let service = PurchaseSyncService::new();
         let mut store = FakeStore::default();
         let fetcher = FakeFetcher::new(vec![
-            success_page(1, 1, "com.ios"),
-            success_page(2, 2, "com.mac"),
+            (None, vec![success_page(1, 1, "com.ios")]),
+            (
+                Some(crate::core::platform::IPAD),
+                vec![success_page(1, 1, "com.ipad")],
+            ),
+            (
+                Some(crate::core::platform::MACOS),
+                vec![success_page(2, 2, "com.mac")],
+            ),
         ]);
         let cancel = AtomicBool::new(false);
         let mut progress_events: Vec<(i64, i64)> = Vec::new();
@@ -632,15 +615,16 @@ mod tests {
         assert_eq!(
             outcome,
             SyncOutcome::Completed {
-                synced: 3,
-                total: 3
+                synced: 4,
+                total: 4
             }
         );
-        // 第一轮 iOS 一页、第二轮 macOS 一页，平台标记分别正确。
+        // 三轮各写一次，平台标记分别正确。
         assert_eq!(
             store.bulk_calls,
             vec![
                 ("ios".to_string(), vec!["com.ios.0".to_string()]),
+                ("ipad".to_string(), vec!["com.ipad.0".to_string()]),
                 (
                     "macos".to_string(),
                     vec!["com.mac.0".to_string(), "com.mac.1".to_string()]
@@ -648,18 +632,22 @@ mod tests {
             ]
         );
         assert_eq!(store.attempts, vec![("user".to_string(), true)]);
-        // macOS 轮进度在 iOS 偏移（1, 1）之上累加。
-        assert_eq!(progress_events, vec![(1, 1), (3, 3)]);
+        // 每轮进度在已完成平台的偏移之上累加。
+        assert_eq!(progress_events, vec![(1, 1), (2, 2), (4, 4)]);
     }
 
     #[test]
-    fn macos_round_failure_is_tolerated_and_logged() {
+    fn non_ios_round_failures_are_tolerated_and_logged() {
         let service = PurchaseSyncService::new();
         let mut store = FakeStore::default();
-        let fetcher = MacosFailingFetcher {
-            ios_pages: vec![success_page(1, 1, "com.a")],
-            calls: AtomicUsize::new(0),
+        let error_page = || {
+            FakeFetcher::page(r#"{"level":"error","error":"unknown flag: --platform","success":false}"#)
         };
+        let fetcher = FakeFetcher::new(vec![
+            (None, vec![success_page(1, 1, "com.a")]),
+            (Some(crate::core::platform::IPAD), vec![error_page()]),
+            (Some(crate::core::platform::MACOS), vec![error_page()]),
+        ]);
         let cancel = AtomicBool::new(false);
         let mut logs: Vec<LogMessage> = Vec::new();
         let mut ignored = |_: i64, _: i64| {};
@@ -675,7 +663,7 @@ mod tests {
             &mut |message| logs.push(message),
         );
 
-        // macOS 轮失败不拖垮整次同步（兼容自定义 ipatool 2.5.0）。
+        // 非 iOS 轮失败不拖垮整次同步（兼容自定义 ipatool 2.5.0）。
         assert_eq!(
             outcome,
             SyncOutcome::Completed {
@@ -684,10 +672,19 @@ mod tests {
             }
         );
         assert_eq!(store.attempts, vec![("user".to_string(), true)]);
-        assert!(
-            logs.iter()
-                .any(|log| log.message.key() == "PurchaseSync/Log/MacosRoundFailed")
-        );
+        let skip_logs: Vec<&LogMessage> = logs
+            .iter()
+            .filter(|log| log.message.key() == "PurchaseSync/Log/PlatformRoundFailed")
+            .collect();
+        assert_eq!(skip_logs.len(), 2);
+        assert!(logs.iter().any(|log| log.message
+            == NormalizedText::Keyed {
+                key: "PurchaseSync/Log/PlatformRoundFailed",
+                args: vec![
+                    "iPad App Store".to_string(),
+                    "unknown flag: --platform".to_string()
+                ],
+            }));
     }
 
     #[test]

@@ -14,9 +14,10 @@ const USER_AGENT: &str = "IPAbuyer/1.0";
 /// 搜索请求总超时（对齐 C# HttpClient 2 分钟超时）。
 const SEARCH_TIMEOUT: Duration = Duration::from_secs(120);
 
-/// iTunes Search entity：iOS App Store 与 Mac App Store 是两个独立实体，
-/// 同一请求只能选其一（Mac 结果需单独请求后合并）。
+/// iTunes Search entity：各 App Store 是独立实体，同一请求只能选其一
+/// （多平台结果需分别请求后合并；tvOS/visionOS 无公开实体）。
 pub const ENTITY_SOFTWARE: &str = "software";
+pub const ENTITY_IPAD_SOFTWARE: &str = "iPadSoftware";
 pub const ENTITY_MAC_SOFTWARE: &str = "macSoftware";
 
 /// 搜索 App Store；结果体在 `output`，HTTP/网络错误在 `error`。

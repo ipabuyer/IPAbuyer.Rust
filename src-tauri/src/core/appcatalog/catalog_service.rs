@@ -32,8 +32,9 @@ pub fn normalize_country_code(
 }
 
 /// 搜索目录：请求 iTunes Search 并解析为带购买状态的结果列表。
-/// 同时检索 iOS（`entity=software`）与 Mac（`entity=macSoftware`）两个
-/// App Store，iOS 结果在前；两侧都超时/为空时返回 `None`。
+/// 同时检索 iOS（`entity=software`）、iPad（`entity=iPadSoftware`）与
+/// Mac（`entity=macSoftware`）三个 App Store，按 iOS、iPad、Mac 排序；
+/// 全部超时/为空时返回 `None`。
 pub fn search_catalog(
     app_name: &str,
     limit: i64,
@@ -42,30 +43,31 @@ pub fn search_catalog(
     purchased_apps: &HashMap<String, String>,
 ) -> Option<Vec<SearchResult>> {
     let country = normalize_country_code(Some(country_code), is_valid_country);
-    let ios = search_one(
-        app_name,
-        limit,
-        &country,
-        search_client::ENTITY_SOFTWARE,
-        crate::core::platform::IOS,
-        purchased_apps,
-    );
-    let macos = search_one(
-        app_name,
-        limit,
-        &country,
-        search_client::ENTITY_MAC_SOFTWARE,
-        crate::core::platform::MACOS,
-        purchased_apps,
-    );
-
-    match (ios, macos) {
-        (None, None) => None,
-        (ios, macos) => Some(merge_results(
-            ios.unwrap_or_default(),
-            macos.unwrap_or_default(),
-        )),
+    let requests = [
+        (search_client::ENTITY_SOFTWARE, crate::core::platform::IOS),
+        (search_client::ENTITY_IPAD_SOFTWARE, crate::core::platform::IPAD),
+        (search_client::ENTITY_MAC_SOFTWARE, crate::core::platform::MACOS),
+    ];
+    let mut rounds: Vec<Option<Vec<SearchResult>>> = Vec::new();
+    for (entity, platform) in requests {
+        rounds.push(search_one(
+            app_name,
+            limit,
+            &country,
+            entity,
+            platform,
+            purchased_apps,
+        ));
     }
+
+    if rounds.iter().all(|round| round.is_none()) {
+        return None;
+    }
+    let mut merged: Vec<SearchResult> = Vec::new();
+    for round in rounds {
+        merged.extend(round.unwrap_or_default());
+    }
+    Some(merged)
 }
 
 /// 检索单一实体并解析为带购买状态的结果；超时或响应为空返回 `None`。
@@ -90,13 +92,6 @@ fn search_one(
     search_parser::parse(&payload, platform, purchased_apps)
 }
 
-/// 合并两个平台的结果：iOS 在前、macOS 在后（同类内保持 API 返回顺序）。
-fn merge_results(ios: Vec<SearchResult>, macos: Vec<SearchResult>) -> Vec<SearchResult> {
-    let mut merged = ios;
-    merged.extend(macos);
-    merged
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -110,30 +105,5 @@ mod tests {
             normalize_country_code(Some("xx"), &|code| code == "us"),
             "cn"
         );
-    }
-
-    #[test]
-    fn merge_results_puts_ios_before_macos() {
-        let item = |bundle_id: &str, platform: &str| SearchResult {
-            bundle_id: bundle_id.to_string(),
-            id: None,
-            name: None,
-            developer: None,
-            artwork_url: None,
-            price: "free".to_string(),
-            version: None,
-            platform: platform.to_string(),
-            purchased: "not_purchased".to_string(),
-        };
-
-        let merged = merge_results(
-            vec![item("com.ios", crate::core::platform::IOS)],
-            vec![item("com.mac", crate::core::platform::MACOS)],
-        );
-
-        assert_eq!(merged.len(), 2);
-        assert_eq!(merged[0].bundle_id, "com.ios");
-        assert_eq!(merged[1].bundle_id, "com.mac");
-        assert_eq!(merged[1].platform, "macos");
     }
 }
