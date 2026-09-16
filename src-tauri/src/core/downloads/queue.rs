@@ -4,8 +4,9 @@
 //! Pending/Failed/Canceled 条目、单飞行守卫、mock 账户直通、逐项输出解析。
 //! 与 C# 版的差异：条目集合为 `Mutex<Vec<_>>`（ObservableCollection 属宿主
 //! UI）；`last_message` 按本地化原则存储 resw 键名；取消经单一 `AtomicBool`
-//! 表达（取消当前项即终止整轮队列，剩余条目保留原状态）；详细日志行在
-//! 下载完成后批量上报（宿主实时展示属 FFI 轮询阶段的接线工作）。
+//! 表达（取消当前项即终止整轮队列，剩余条目保留原状态）；ipatool 命令的
+//! 输入/输出详细日志由 runner 侧（IpatoolClient sink）统一上报，队列只补
+//! "请求许可"阶段里程碑，避免重复记录。
 
 use std::collections::HashSet;
 use std::sync::atomic::AtomicBool;
@@ -45,8 +46,6 @@ pub struct StartQueueParams<'a> {
     pub output_directory: &'a str,
     /// mock 账户直通：条目直接标记成功，不调用 runner。
     pub is_mock: bool,
-    /// 详细日志开关（运行期间缓存，避免高频读写配置）。
-    pub detailed_log: bool,
     pub cancel: &'a AtomicBool,
     pub runner: DownloadRunner<'a>,
     pub on_log: &'a mut dyn FnMut(LogMessage),
@@ -186,7 +185,6 @@ impl DownloadQueueService {
         let StartQueueParams {
             output_directory,
             is_mock,
-            detailed_log,
             cancel,
             runner,
             on_log,
@@ -297,6 +295,8 @@ impl DownloadQueueService {
             let run_result = runner(&item, Some(&on_chunk), cancel, on_log);
 
             // 冲刷输出解析器；请求许可阶段已在回调中实时更新条目。
+            // ipatool 输入/输出日志由 runner 侧（IpatoolClient sink）统一上报，
+            // 队列只补阶段里程碑，避免同一输出重复记录。
             let flush = context.flush();
             if flush.requesting_license {
                 update_stage(
@@ -309,21 +309,8 @@ impl DownloadQueueService {
                     on_change,
                 );
             }
-            if detailed_log {
-                for line in &flush.log_lines {
-                    on_log(LogMessage::raw(
-                        LogLevel::Ipatool,
-                        format!("[{}] {line}", item.name),
-                    ));
-                }
-            }
             for log in context.drain_logs() {
                 on_log(log);
-            }
-            if detailed_log {
-                for line in context.drain_detailed() {
-                    on_log(LogMessage::raw(LogLevel::Ipatool, line));
-                }
             }
 
             match run_result {
@@ -411,6 +398,7 @@ impl DownloadQueueService {
 }
 
 /// 下载期间的输出解析上下文：回调线程只做加锁更新，日志延迟到完成后上报。
+/// 仅跟踪"请求许可"阶段里程碑；输出行的详细日志由 runner 侧统一上报。
 struct ChunkContext<'a> {
     items: &'a Mutex<Vec<DownloadQueueItem>>,
     bundle_id: String,
@@ -418,7 +406,6 @@ struct ChunkContext<'a> {
     cancel: &'a AtomicBool,
     parser: Mutex<DownloadOutputParser>,
     pending_logs: Mutex<Vec<LogMessage>>,
-    pending_detailed: Mutex<Vec<String>>,
 }
 
 impl<'a> ChunkContext<'a> {
@@ -435,7 +422,6 @@ impl<'a> ChunkContext<'a> {
             cancel,
             parser: Mutex::new(DownloadOutputParser::new()),
             pending_logs: Mutex::new(Vec::new()),
-            pending_detailed: Mutex::new(Vec::new()),
         }
     }
 
@@ -459,12 +445,6 @@ impl<'a> ChunkContext<'a> {
                     "DownloadQueue/Log/RequestingLicense",
                     vec![self.name.clone()],
                 ));
-        }
-        for line in &update.log_lines {
-            self.pending_detailed
-                .lock()
-                .expect("pending lock")
-                .push(format!("[{}] {line}", self.name));
         }
     }
 
@@ -490,10 +470,6 @@ impl<'a> ChunkContext<'a> {
 
     fn drain_logs(&self) -> Vec<LogMessage> {
         std::mem::take(&mut *self.pending_logs.lock().expect("pending lock"))
-    }
-
-    fn drain_detailed(&self) -> Vec<String> {
-        std::mem::take(&mut *self.pending_detailed.lock().expect("pending lock"))
     }
 }
 
@@ -655,7 +631,6 @@ mod tests {
             let completed = service.start_queue(StartQueueParams {
                 output_directory: "C:\\Downloads",
                 is_mock: false,
-                detailed_log: false,
                 cancel: &cancel,
                 runner: &runner,
                 on_log: &mut log_sink,
@@ -703,9 +678,8 @@ mod tests {
         let mut log_sink = |log: LogMessage| logs.push(log);
         let completed = service.start_queue(StartQueueParams {
             output_directory: "C:\\Downloads",
-            is_mock: true,
-            detailed_log: false,
-            cancel: &cancel,
+                is_mock: true,
+                cancel: &cancel,
             runner: &runner,
             on_log: &mut log_sink,
             on_change: &mut change_sink,
@@ -754,7 +728,6 @@ mod tests {
         let completed = service.start_queue(StartQueueParams {
             output_directory: "C:\\Downloads",
             is_mock: false,
-            detailed_log: true,
             cancel: &cancel,
             runner: &runner,
             on_log: &mut log_sink,
@@ -766,8 +739,8 @@ mod tests {
             logs.iter()
                 .any(|log| log.message.key() == "DownloadQueue/Log/RequestingLicense")
         );
-        assert!(logs.iter().any(|log| log.level == LogLevel::Ipatool
-            && log.message == NormalizedText::Raw("[App com.a] downloading 40%".to_string())));
+        // 队列自身不再上报 ipatool 输入/输出详细行（由 runner 侧 sink 统一处理）
+        assert!(!logs.iter().any(|log| log.level == LogLevel::Ipatool));
     }
 
     #[test]
@@ -801,7 +774,6 @@ mod tests {
         let completed = service.start_queue(StartQueueParams {
             output_directory: "C:\\Downloads",
             is_mock: false,
-            detailed_log: false,
             cancel: &cancel,
             runner: &runner,
             on_log: &mut log_sink,
@@ -830,7 +802,6 @@ mod tests {
         let completed = service.start_queue(StartQueueParams {
             output_directory: "C:\\Downloads",
             is_mock: false,
-            detailed_log: false,
             cancel: &cancel,
             runner: &runner,
             on_log: &mut log_sink,
@@ -872,7 +843,6 @@ mod tests {
         service.start_queue(StartQueueParams {
             output_directory: "C:\\Downloads",
             is_mock: false,
-            detailed_log: false,
             cancel: &cancel,
             runner: &runner,
             on_log: &mut log_sink,

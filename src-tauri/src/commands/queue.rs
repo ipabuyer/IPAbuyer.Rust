@@ -158,7 +158,6 @@ pub fn queue_start(app: AppHandle, state: State<'_, AppState>) -> Result<(), Str
         queue.start_queue(StartQueueParams {
             output_directory: &output_directory,
             is_mock,
-            detailed_log,
             cancel: &cancel,
             runner: &runner,
             on_log: &mut on_log,

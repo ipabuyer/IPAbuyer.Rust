@@ -213,7 +213,7 @@ node scripts/eval-webview.mjs 9224 "window.__TAURI_INTERNALS__.invoke('settings_
 1. 展示形式为**独立日志窗口**（对齐 WinUI3 版 LogViewerWindow）：Rust 命令 `logs_show_window`/`logs_hide_window` 按需创建/隐藏（label `log`，用户关闭即销毁、再开重建并快照回填）；前端 `main.tsx` 按窗口标签分流渲染 `LogWindow`。
 2. 格式 `[日期时间] [INFO] 内容`；等级着色；ipatool 输出的等级标修订为 `[ipatool]`；等宽字体深色底。
 3. 日志窗口自动展开：主页点击下载、设置页开始/取消同步（刷新已购列表）时自动打开；购买经 toast 反馈不开窗（前端测试约定），账户页提供手动日志按钮。
-4. 数据链路：core 命令的日志回调 → 后端 UiLogStore（环形缓冲 1000 行）→ `emit("log-append")` → 前端 store；详细日志开关（`detailedIpatoolLog`）开启时记录命令与完整输出。
+4. 数据链路：core 命令的日志回调 → 后端 UiLogStore（环形缓冲 1000 行）→ `emit("log-append")` → 前端 store；详细日志开关（`detailedIpatoolLog`）开启时记录命令与完整输出，`$` 前缀为输入命令（敏感值遮蔽）、`<` 前缀为 ipatool 输出行。
 5. 长任务（队列、同步）由后端 tokio 任务 200ms 轮询状态并 emit 事件，前端不自行轮询。
 
 ## 15. 设置页
