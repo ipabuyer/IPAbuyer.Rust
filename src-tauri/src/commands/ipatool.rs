@@ -8,7 +8,7 @@ use tauri::State;
 
 use crate::state::{AppState, IPATOOL_FLAVOR_CUSTOM, IPATOOL_FLAVOR_MAIN};
 
-pub const BUILTIN_IPATOOL_VERSION: &str = "2.5.0";
+pub const BUILTIN_IPATOOL_VERSION: &str = "2.6.0";
 const LEGACY_PACKAGE_FAMILY: &str = "IPAbuyer.IPAbuyer_kr1hdvrv6tpd0";
 
 #[derive(Debug, Serialize)]
