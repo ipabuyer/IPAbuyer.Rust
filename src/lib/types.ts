@@ -55,8 +55,8 @@ export type Storefront = readonly [code: string, name: string];
 
 export type PurchaseStatus = "purchased" | "not_purchased";
 
-/** App Store 平台：iOS（缺省）与 Mac App Store。 */
-export type AppPlatform = "ios" | "macos";
+/** App Store 平台：iOS（缺省）、iPadOS 与 Mac App Store。 */
+export type AppPlatform = "ios" | "ipad" | "macos";
 
 export interface SearchResultItem {
   bundleId: string;

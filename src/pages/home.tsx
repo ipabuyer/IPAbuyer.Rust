@@ -70,8 +70,16 @@ const FILTER_KEY: Record<Filter, string> = {
 const PLATFORM_KEY: Record<PlatformFilter, string> = {
   all: "MainPage/Filter/AllPlatforms",
   ios: "MainPage/Platform/Ios",
+  ipad: "MainPage/Platform/Ipad",
   macos: "MainPage/Platform/Macos",
 };
+
+/** 非 iOS 平台的卡片徽标键（iOS 为缺省平台不显示徽标）。 */
+function platformBadgeKey(platform: SearchResultItem["platform"]): string | null {
+  if (platform === "macos") return "MainPage/Platform/Macos";
+  if (platform === "ipad") return "MainPage/Platform/Ipad";
+  return null;
+}
 
 // 应用显示名：名称为空白时回退 bundleId（对齐 WinUI3 GetAppDisplayLabel）
 function appDisplayLabel(item: SearchResultItem): string {
@@ -333,7 +341,7 @@ export function HomePage() {
                 {t("MainPage/Filter/Platform")}
               </Label>
               <div className="flex h-8 w-fit overflow-hidden rounded-md border">
-                {(["all", "ios", "macos"] as PlatformFilter[]).map((key) => (
+                {(["all", "ios", "ipad", "macos"] as PlatformFilter[]).map((key) => (
                   <button
                     key={key}
                     className={cn(
@@ -485,14 +493,17 @@ function AppCard({
             }
           >
             {/* WinUI3 卡片架构：版本号/状态为标题与动作区之间的独立横向列 */}
-            {item.platform === "macos" && (
-              <span
-                title={t("MainPage/Card/MacosBadge")}
-                className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
-              >
-                {t("MainPage/Card/MacosBadge")}
-              </span>
-            )}
+            {(() => {
+              const badgeKey = platformBadgeKey(item.platform);
+              return badgeKey ? (
+                <span
+                  title={t(badgeKey)}
+                  className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+                >
+                  {t(badgeKey)}
+                </span>
+              ) : null;
+            })()}
             <span
               className="w-20 shrink-0 text-right text-xs text-muted-foreground"
               title={item.version ?? undefined}

@@ -196,19 +196,24 @@ describe("HomePage", () => {
     await vi.waitFor(() => expect(markMock).toHaveBeenCalledWith("com.free", "purchased", "ios"));
   });
 
-  it("macOS cards show a Mac badge", async () => {
+  it("macOS and iPad cards show platform badges", async () => {
     const macResult = {
       ...result("com.mac", "not_purchased", "Apple"),
       platform: "macos" as const,
+    };
+    const ipadResult = {
+      ...result("com.ipad", "not_purchased", "Apple"),
+      platform: "ipad" as const,
     };
     useSearch.setState({
       query: "测试",
       searching: false,
       lastSearchEmpty: false,
-      results: [...useSearch.getState().results, macResult],
+      results: [...useSearch.getState().results, macResult, ipadResult],
     });
 
     expect(await screen.findByText("Mac")).toBeTruthy();
+    expect(screen.getByText("iPad")).toBeTruthy();
   });
 
   it("filter dialog filters by platform", async () => {
@@ -232,5 +237,25 @@ describe("HomePage", () => {
     expect(await screen.findByText("应用-com.mac")).toBeTruthy();
     expect(screen.queryByText("应用-com.free")).toBeNull();
     expect(screen.queryByText("应用-com.purchased")).toBeNull();
+  });
+
+  it("filter dialog filters by iPad platform", async () => {
+    const ipadResult = {
+      ...result("com.ipad", "not_purchased", "Apple"),
+      platform: "ipad" as const,
+    };
+    useSearch.setState({
+      query: "测试",
+      searching: false,
+      lastSearchEmpty: false,
+      results: [...useSearch.getState().results, ipadResult],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "筛选" }));
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "iPad" }));
+    expect(await screen.findByText("应用-com.ipad")).toBeTruthy();
+    expect(screen.queryByText("应用-com.free")).toBeNull();
   });
 });
