@@ -5,6 +5,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { ThemeProvider } from "next-themes";
 import App from "./App";
 import { LogWindow } from "./components/log-window";
+import { FilterWindow } from "./components/filter-window";
 import { applySystemTheme } from "./lib/theme";
 import "./i18n";
 import "./index.css";
@@ -34,7 +35,7 @@ function SystemThemeSync() {
   return null;
 }
 
-// 日志窗口与主窗口共用同一前端包，按窗口标签分流渲染
+// 日志/筛选窗口与主窗口共用同一前端包，按窗口标签分流渲染
 const label = (window as Record<string, any>).__TAURI_INTERNALS__?.metadata?.currentWindow
   ?.label as string | undefined;
 
@@ -42,7 +43,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ThemeProvider>
       <SystemThemeSync />
-      {label === "log" ? <LogWindow /> : <App />}
+      {label === "log" ? <LogWindow /> : label === "filter" ? <FilterWindow /> : <App />}
     </ThemeProvider>
   </React.StrictMode>,
 );

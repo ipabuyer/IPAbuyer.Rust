@@ -15,13 +15,6 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
@@ -35,28 +28,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
 import { SettingsCard } from "@/components/settings-card";
 import { api } from "@/lib/api";
-import {
-  appStoreUrl,
-  collectDevelopers,
-  displayStatus,
-  filterResults,
-  type PlatformFilter,
-} from "@/lib/status";
+import { appStoreUrl, displayStatus, filterResults } from "@/lib/status";
 import type { SearchResultItem } from "@/lib/types";
 import { useSearch } from "@/stores/search";
 import { useQueue } from "@/stores/queue";
 import { useSession } from "@/stores/session";
 import { useLogs } from "@/stores/logs";
+import { useFilter } from "@/stores/filter";
 import { cn } from "@/lib/utils";
 
 type Filter = "all" | "not_purchased" | "purchased";
@@ -65,13 +45,6 @@ const FILTER_KEY: Record<Filter, string> = {
   all: "MainPage/Filter/AllItem.Content",
   not_purchased: "MainPage/Filter/OnlyNotPurchasedItem.Content",
   purchased: "MainPage/Filter/OnlyPurchasedItem.Content",
-};
-
-const PLATFORM_KEY: Record<PlatformFilter, string> = {
-  all: "MainPage/Filter/AllPlatforms",
-  ios: "MainPage/Platform/Ios",
-  ipad: "MainPage/Platform/Ipad",
-  macos: "MainPage/Platform/Macos",
 };
 
 /** 非 iOS 平台的卡片徽标键（iOS 为缺省平台不显示徽标）。 */
@@ -102,11 +75,10 @@ export function HomePage() {
   const { running, items, refresh } = useQueue();
   const loggedIn = useSession((s) => s.loggedIn);
   const openLog = useLogs((s) => s.setOpen);
+  // 平台/开发者筛选保存在后端（独立筛选窗口共享），经 filter-changed 同步
+  const { platform: platformFilter, developer } = useFilter();
 
   const [filter, setFilter] = useState<Filter>("all");
-  const [developer, setDeveloper] = useState("all");
-  const [platformFilter, setPlatformFilter] = useState<PlatformFilter>("all");
-  const [filterOpen, setFilterOpen] = useState(false);
   const [busyBundle, setBusyBundle] = useState("");
   const [countryCode, setCountryCode] = useState("cn");
 
@@ -114,15 +86,9 @@ export function HomePage() {
     void api.getSettings().then((c) => setCountryCode(c.countryCode));
   }, []);
 
-  const developers = useMemo(() => collectDevelopers(results), [results]);
-
-  // 搜索结果变化后，已选开发者不在新结果中时回退为全部开发者
   useEffect(() => {
-    if (developer === "all") return;
-    if (!developers.some((d) => d.toLowerCase() === developer.toLowerCase())) {
-      setDeveloper("all");
-    }
-  }, [developers, developer]);
+    void useFilter.getState().init();
+  }, []);
 
   const filtered = useMemo(
     () => filterResults(results, filter, developer, platformFilter),
@@ -286,7 +252,7 @@ export function HomePage() {
             {t("MainPage/Action/CancelAllDownloadsButton.Content")}
           </Button>
         )}
-        <Button variant="outline" size="sm" onClick={() => setFilterOpen(true)}>
+        <Button variant="outline" size="sm" onClick={() => void api.filterShow()}>
           <ListFilter className="size-4" />
           {t("MainPage/Action/FilterButton.Content")}
         </Button>
@@ -328,63 +294,6 @@ export function HomePage() {
           </div>
         )}
       </div>
-
-      {/* 筛选弹窗：平台 + 开发者（条件即时生效） */}
-      <Dialog open={filterOpen} onOpenChange={setFilterOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{t("MainPage/Action/FilterButton.Content")}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">
-                {t("MainPage/Filter/Platform")}
-              </Label>
-              <div className="flex h-8 w-fit overflow-hidden rounded-md border">
-                {(["all", "ios", "ipad", "macos"] as PlatformFilter[]).map((key) => (
-                  <button
-                    key={key}
-                    className={cn(
-                      "h-full px-3 text-xs",
-                      platformFilter === key
-                        ? "bg-primary text-primary-foreground"
-                        : "hover:bg-accent",
-                    )}
-                    onClick={() => setPlatformFilter(key)}
-                  >
-                    {t(PLATFORM_KEY[key])}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">
-                {t("MainPage/Filter/Developer")}
-              </Label>
-              <Select value={developer} onValueChange={setDeveloper}>
-                <SelectTrigger size="sm" className="w-full text-xs">
-                  <SelectValue placeholder={t("MainPage/DeveloperSelectorAllItem.Content")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">
-                    {t("MainPage/DeveloperSelectorAllItem.Content")}
-                  </SelectItem>
-                  {developers.map((name) => (
-                    <SelectItem key={name} value={name}>
-                      {name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setFilterOpen(false)}>
-              {t("Settings/CountryCode/CancelButton")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

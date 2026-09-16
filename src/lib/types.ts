@@ -110,3 +110,10 @@ export interface LogEntry {
 }
 
 export type QueueFilter = "all" | "not_purchased" | "purchased";
+
+/** 主页筛选（筛选窗口与主窗口共享；developers 为当前搜索的开发者选项）。 */
+export interface FilterSelection {
+  platform: "all" | AppPlatform;
+  developer: string;
+  developers: string[];
+}

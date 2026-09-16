@@ -4,6 +4,7 @@ import type {
   AppPlatform,
   AuthInfo,
   AuthResult,
+  FilterSelection,
   LogoutResult,
   PurchaseResult,
   QueueStatus,
@@ -32,6 +33,11 @@ export const api = {
   search: (query: string) => invoke<SearchResultItem[]>("catalog_search", { query }),
   purchase: (bundleId: string, price: string, purchased: string, platform: AppPlatform) =>
     invoke<PurchaseResult>("purchase", { bundleId, price, purchased, platform }),
+  filterGet: () => invoke<FilterSelection>("filter_get"),
+  filterSet: (platform: string | null, developer: string | null) =>
+    invoke<void>("filter_set", { platform, developer }),
+  filterShow: () => invoke<void>("filter_show_window"),
+  filterHide: () => invoke<void>("filter_hide_window"),
   mark: (bundleId: string, status: string, platform: AppPlatform) =>
     invoke<void>("purchases_mark", { bundleId, status, platform }),
   unmark: (bundleId: string, platform: AppPlatform) =>

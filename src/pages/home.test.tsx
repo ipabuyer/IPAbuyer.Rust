@@ -11,6 +11,7 @@ const queueStartMock = vi.fn();
 const queueCancelMock = vi.fn();
 const markMock = vi.fn();
 const unmarkMock = vi.fn();
+const filterShowMock = vi.fn();
 const getSettingsMock = vi.fn(async (..._args: unknown[]) => ({
   countryCode: "cn",
   downloadDirectory: null,
@@ -26,6 +27,7 @@ const searchMock = vi.fn(async () => []);
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(async () => null),
 }));
+vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(async () => vi.fn()) }));
 vi.mock("@tauri-apps/plugin-opener", () => ({
   openUrl: vi.fn(async () => {}),
 }));
@@ -46,6 +48,10 @@ vi.mock("@/lib/api", () => ({
     logsSnapshot: vi.fn(async () => []),
     logsClear: vi.fn(async () => {}),
     syncLastTime: vi.fn(async () => null),
+    filterGet: vi.fn(async () => ({ platform: "all", developer: "all", developers: [] })),
+    filterSet: vi.fn(async () => {}),
+    filterShow: (...a: unknown[]) => filterShowMock(...(a as unknown[])),
+    filterHide: vi.fn(async () => {}),
   },
 }));
 
@@ -54,6 +60,7 @@ import { useLogs } from "@/stores/logs";
 import { useQueue } from "@/stores/queue";
 import { useSearch } from "@/stores/search";
 import { useSession } from "@/stores/session";
+import { useFilter } from "@/stores/filter";
 
 const result = (bundleId: string, purchased: string, developer: string) => ({
   bundleId,
@@ -91,6 +98,12 @@ beforeEach(async () => {
   });
   useQueue.setState({ running: false, items: [], listening: false });
   useLogs.setState({ entries: [], listening: false });
+  useFilter.setState({
+    platform: "all",
+    developer: "all",
+    developers: [],
+    listening: false,
+  });
 
   if (!i18next.isInitialized) {
     await i18next.use(initReactI18next).init({
@@ -216,7 +229,12 @@ describe("HomePage", () => {
     expect(screen.getByText("iPad")).toBeTruthy();
   });
 
-  it("filter dialog filters by platform", async () => {
+  it("filter button opens the independent filter window", async () => {
+    fireEvent.click(screen.getByRole("button", { name: "筛选" }));
+    await vi.waitFor(() => expect(filterShowMock).toHaveBeenCalled());
+  });
+
+  it("filter store drives the platform filter", async () => {
     const macResult = {
       ...result("com.mac", "not_purchased", "Apple"),
       platform: "macos" as const,
@@ -227,35 +245,12 @@ describe("HomePage", () => {
       lastSearchEmpty: false,
       results: [...useSearch.getState().results, macResult],
     });
+    const { useFilter } = await import("@/stores/filter");
+    useFilter.setState({ platform: "macos" });
 
-    // 打开筛选弹窗（日志按钮左侧）
-    fireEvent.click(screen.getByRole("button", { name: "筛选" }));
-    expect(await screen.findByRole("dialog")).toBeTruthy();
-
-    // 选择 Mac 平台：仅 macOS 条目保留
-    fireEvent.click(screen.getByRole("button", { name: "Mac" }));
     expect(await screen.findByText("应用-com.mac")).toBeTruthy();
     expect(screen.queryByText("应用-com.free")).toBeNull();
     expect(screen.queryByText("应用-com.purchased")).toBeNull();
-  });
-
-  it("filter dialog filters by iPad platform", async () => {
-    const ipadResult = {
-      ...result("com.ipad", "not_purchased", "Apple"),
-      platform: "ipad" as const,
-    };
-    useSearch.setState({
-      query: "测试",
-      searching: false,
-      lastSearchEmpty: false,
-      results: [...useSearch.getState().results, ipadResult],
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "筛选" }));
-    expect(await screen.findByRole("dialog")).toBeTruthy();
-
-    fireEvent.click(screen.getByRole("button", { name: "iPad" }));
-    expect(await screen.findByText("应用-com.ipad")).toBeTruthy();
-    expect(screen.queryByText("应用-com.free")).toBeNull();
+    useFilter.setState({ platform: "all" });
   });
 });
