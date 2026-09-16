@@ -34,7 +34,7 @@ const DEVELOPER_SITE = "https://ipa.blazesnow.com";
 const PROJECT_REPO = "https://github.com/ipabuyer/ipabuyer";
 
 export function SettingsPage() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [version, setVersion] = useState("");
   const [countryOpen, setCountryOpen] = useState(false);
@@ -73,15 +73,8 @@ export function SettingsPage() {
   }
 
   async function handleLanguageChange(language: string) {
+    // 保存后由后端广播 language-changed，所有窗口（含本窗口）统一切换
     await persist(api.setDisplayLanguage(language));
-    // 即时生效，无需重启（auto 时按系统语言解析）
-    const resolved =
-      language === "auto"
-        ? navigator.language.toLowerCase().startsWith("zh")
-          ? "zh-Hans"
-          : "en-US"
-        : language;
-    await i18n.changeLanguage(resolved);
   }
 
   async function handlePickDownloadDirectory() {

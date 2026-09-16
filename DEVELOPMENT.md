@@ -232,7 +232,7 @@ node scripts/eval-webview.mjs 9224 "window.__TAURI_INTERNALS__.invoke('settings_
 | `ipatool_flavor` | ipatool 来源：`main` / `custom` | `main` |
 | `custom_ipatool_path` | 自定义 ipatool.exe 路径 | null |
 
-显示语言切换即时生效（`i18n.changeLanguage`），无需重启；启动时由 `initialization_script` 注入 `window.__IPABUYER_LANG__` 保证首帧正确（见 `src-tauri/src/lib.rs` 与 `src/i18n.ts`）。
+显示语言切换即时生效（后端保存配置并广播 `language-changed`，所有窗口——主窗口/日志/筛选——各自 `changeLanguage`，"auto" 由各窗口按系统语言解析），无需重启；启动时由 `initialization_script` 注入 `window.__IPABUYER_LANG__` 保证首帧正确（见 `src-tauri/src/lib.rs` 与 `src/i18n.ts`）。
 
 ## 16. 搜索功能
 

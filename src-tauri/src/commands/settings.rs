@@ -1,7 +1,7 @@
 //! 设置命令（对齐 C# ConfigurationStore / ApplicationSettings）。
 
 use serde::Serialize;
-use tauri::State;
+use tauri::{Emitter, State};
 
 use crate::state::{AppState, Config, DISPLAY_LANGUAGE_AUTO};
 use crate::storefront;
@@ -85,21 +85,30 @@ pub fn settings_reset_download_directory(state: State<'_, AppState>) -> Result<C
     state.update_config(|c| c.download_directory = None).map(ConfigDto::from)
 }
 
-fn set_display_language_inner(state: &AppState, language: String) -> Result<ConfigDto, String> {
+fn set_display_language_inner(
+    app: &tauri::AppHandle,
+    state: &AppState,
+    language: String,
+) -> Result<ConfigDto, String> {
     let value = language.trim().to_string();
     if value != DISPLAY_LANGUAGE_AUTO && value != "zh-Hans" && value != "en-US" {
         return Err(format!("无效的显示语言: {language}"));
     }
-    state.update_config(|c| c.display_language = value).map(ConfigDto::from)
+    let config = state.update_config(|c| c.display_language = value.clone()).map(ConfigDto::from)?;
+    // 广播给所有窗口（主窗口/日志/筛选各自 changeLanguage；"auto" 由各窗口
+    // 按自身 navigator.language 解析，与初始化注入行为一致）
+    let _ = app.emit("language-changed", value);
+    Ok(config)
 }
 
 /// 显示语言：auto / zh-Hans / en-US。
 #[tauri::command]
 pub fn settings_set_display_language(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     language: String,
 ) -> Result<ConfigDto, String> {
-    set_display_language_inner(&state, language)
+    set_display_language_inner(&app, &state, language)
 }
 
 #[tauri::command]

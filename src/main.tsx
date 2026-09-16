@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { ThemeProvider } from "next-themes";
 import App from "./App";
+import i18n, { resolveLanguage } from "./i18n";
 import { LogWindow } from "./components/log-window";
 import { FilterWindow } from "./components/filter-window";
 import { applySystemTheme } from "./lib/theme";
@@ -35,6 +36,20 @@ function SystemThemeSync() {
   return null;
 }
 
+// 显示语言跨窗口同步：设置页切换后由后端广播 language-changed，所有窗口
+// （主窗口/日志/筛选）各自 changeLanguage；"auto" 由各窗口按系统语言解析。
+function LanguageSync() {
+  useEffect(() => {
+    const unlistenPromise = listen<string>("language-changed", (e) => {
+      void i18n.changeLanguage(resolveLanguage(e.payload));
+    });
+    return () => {
+      void unlistenPromise.then((fn) => fn());
+    };
+  }, []);
+  return null;
+}
+
 // 日志/筛选窗口与主窗口共用同一前端包，按窗口标签分流渲染
 const label = (window as Record<string, any>).__TAURI_INTERNALS__?.metadata?.currentWindow
   ?.label as string | undefined;
@@ -43,6 +58,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ThemeProvider>
       <SystemThemeSync />
+      <LanguageSync />
       {label === "log" ? <LogWindow /> : label === "filter" ? <FilterWindow /> : <App />}
     </ThemeProvider>
   </React.StrictMode>,
