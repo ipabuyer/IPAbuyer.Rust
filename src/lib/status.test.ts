@@ -150,4 +150,30 @@ describe("filterResults", () => {
   it("unknown developer yields empty list", () => {
     expect(filterResults(results, "all", "missing")).toEqual([]);
   });
+
+  it("platform filter keeps only matching platform entries", () => {
+    const withMac = [...results, item({ bundleId: "com.mac", platform: "macos" })];
+
+    expect(filterResults(withMac, "all", "all", "all").length).toBe(4);
+    expect(
+      filterResults(withMac, "all", "all", "ios").map((r) => r.bundleId),
+    ).toEqual(["com.a", "com.b", "com.c"]);
+    expect(filterResults(withMac, "all", "all", "macos").map((r) => r.bundleId)).toEqual([
+      "com.mac",
+    ]);
+  });
+
+  it("platform filter intersects with status and developer", () => {
+    const withMac = [
+      ...results,
+      item({ bundleId: "com.mac", platform: "macos", purchased: "purchased" }),
+    ];
+
+    expect(
+      filterResults(withMac, "purchased", "all", "macos").map((r) => r.bundleId),
+    ).toEqual(["com.mac"]);
+    expect(
+      filterResults(withMac, "purchased", "NetEase", "macos"),
+    ).toEqual([]);
+  });
 });

@@ -1,4 +1,4 @@
-import type { QueueFilter, SearchResultItem } from "./types";
+import type { AppPlatform, QueueFilter, SearchResultItem } from "./types";
 
 // 前端展示策略（复刻 core purchases/status_policy，仅供渲染；执行仍以后端校验为准）
 
@@ -67,11 +67,15 @@ export function collectDevelopers(results: SearchResultItem[]): string[] {
   return options;
 }
 
-/** 筛选：全部 / 未购买 / 已购买 + 开发者（大小写不敏感）。 */
+/** 平台筛选：全部 / iOS / Mac。 */
+export type PlatformFilter = "all" | AppPlatform;
+
+/** 筛选：全部 / 未购买 / 已购买 + 开发者（大小写不敏感）+ 平台。 */
 export function filterResults(
   results: SearchResultItem[],
   filter: QueueFilter,
   developer: string,
+  platform: PlatformFilter = "all",
 ): SearchResultItem[] {
   return results.filter((item) => {
     const status = displayStatus(item);
@@ -79,6 +83,7 @@ export function filterResults(
     if (filter === "not_purchased" && status === "purchased") return false;
     if (developer !== "all" && item.developer?.trim().toLowerCase() !== developer.toLowerCase())
       return false;
+    if (platform !== "all" && item.platform !== platform) return false;
     return true;
   });
 }

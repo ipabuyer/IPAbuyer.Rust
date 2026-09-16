@@ -7,11 +7,19 @@ import {
   Ellipsis,
   ExternalLink,
   Loader2,
+  ListFilter,
   ShoppingCart,
   Square,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -33,9 +41,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { SettingsCard } from "@/components/settings-card";
 import { api } from "@/lib/api";
-import { appStoreUrl, collectDevelopers, displayStatus, filterResults } from "@/lib/status";
+import {
+  appStoreUrl,
+  collectDevelopers,
+  displayStatus,
+  filterResults,
+  type PlatformFilter,
+} from "@/lib/status";
 import type { SearchResultItem } from "@/lib/types";
 import { useSearch } from "@/stores/search";
 import { useQueue } from "@/stores/queue";
@@ -49,6 +64,12 @@ const FILTER_KEY: Record<Filter, string> = {
   all: "MainPage/Filter/AllItem.Content",
   not_purchased: "MainPage/Filter/OnlyNotPurchasedItem.Content",
   purchased: "MainPage/Filter/OnlyPurchasedItem.Content",
+};
+
+const PLATFORM_KEY: Record<PlatformFilter, string> = {
+  all: "MainPage/Filter/AllPlatforms",
+  ios: "MainPage/Platform/Ios",
+  macos: "MainPage/Platform/Macos",
 };
 
 // 应用显示名：名称为空白时回退 bundleId（对齐 WinUI3 GetAppDisplayLabel）
@@ -75,6 +96,8 @@ export function HomePage() {
 
   const [filter, setFilter] = useState<Filter>("all");
   const [developer, setDeveloper] = useState("all");
+  const [platformFilter, setPlatformFilter] = useState<PlatformFilter>("all");
+  const [filterOpen, setFilterOpen] = useState(false);
   const [busyBundle, setBusyBundle] = useState("");
   const [countryCode, setCountryCode] = useState("cn");
 
@@ -93,8 +116,8 @@ export function HomePage() {
   }, [developers, developer]);
 
   const filtered = useMemo(
-    () => filterResults(results, filter, developer),
-    [results, filter, developer],
+    () => filterResults(results, filter, developer, platformFilter),
+    [results, filter, developer, platformFilter],
   );
 
   function requireLogin(): boolean {
@@ -246,19 +269,6 @@ export function HomePage() {
             </button>
           ))}
         </div>
-        <Select value={developer} onValueChange={setDeveloper}>
-          <SelectTrigger size="sm" className="w-44 text-xs">
-            <SelectValue placeholder={t("MainPage/DeveloperSelectorAllItem.Content")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("MainPage/DeveloperSelectorAllItem.Content")}</SelectItem>
-            {developers.map((name) => (
-              <SelectItem key={name} value={name}>
-                {name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
         <div className="flex-1" />
         {downloading && <ActivityRing />}
         {downloading && (
@@ -267,6 +277,10 @@ export function HomePage() {
             {t("MainPage/Action/CancelAllDownloadsButton.Content")}
           </Button>
         )}
+        <Button variant="outline" size="sm" onClick={() => setFilterOpen(true)}>
+          <ListFilter className="size-4" />
+          {t("MainPage/Action/FilterButton.Content")}
+        </Button>
         <Button variant="outline" size="sm" onClick={() => openLog(true)}>
           {t("MainPage/Action/OpenLogButton.Content")}
         </Button>
@@ -290,7 +304,7 @@ export function HomePage() {
           <div className="space-y-2">
             {filtered.map((item) => (
               <AppCard
-                key={item.bundleId}
+                key={`${item.platform}:${item.bundleId}`}
                 item={item}
                 busy={busyBundle === item.bundleId}
                 onPurchase={() => void handlePurchase(item)}
@@ -304,6 +318,63 @@ export function HomePage() {
           </div>
         )}
       </div>
+
+      {/* 筛选弹窗：平台 + 开发者（条件即时生效） */}
+      <Dialog open={filterOpen} onOpenChange={setFilterOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("MainPage/Action/FilterButton.Content")}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">
+                {t("MainPage/Filter/Platform")}
+              </Label>
+              <div className="flex h-8 w-fit overflow-hidden rounded-md border">
+                {(["all", "ios", "macos"] as PlatformFilter[]).map((key) => (
+                  <button
+                    key={key}
+                    className={cn(
+                      "h-full px-3 text-xs",
+                      platformFilter === key
+                        ? "bg-primary text-primary-foreground"
+                        : "hover:bg-accent",
+                    )}
+                    onClick={() => setPlatformFilter(key)}
+                  >
+                    {t(PLATFORM_KEY[key])}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">
+                {t("MainPage/Filter/Developer")}
+              </Label>
+              <Select value={developer} onValueChange={setDeveloper}>
+                <SelectTrigger size="sm" className="w-full text-xs">
+                  <SelectValue placeholder={t("MainPage/DeveloperSelectorAllItem.Content")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">
+                    {t("MainPage/DeveloperSelectorAllItem.Content")}
+                  </SelectItem>
+                  {developers.map((name) => (
+                    <SelectItem key={name} value={name}>
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setFilterOpen(false)}>
+              {t("Settings/CountryCode/CancelButton")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

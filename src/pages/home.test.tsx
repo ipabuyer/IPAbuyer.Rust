@@ -210,4 +210,27 @@ describe("HomePage", () => {
 
     expect(await screen.findByText("Mac")).toBeTruthy();
   });
+
+  it("filter dialog filters by platform", async () => {
+    const macResult = {
+      ...result("com.mac", "not_purchased", "Apple"),
+      platform: "macos" as const,
+    };
+    useSearch.setState({
+      query: "测试",
+      searching: false,
+      lastSearchEmpty: false,
+      results: [...useSearch.getState().results, macResult],
+    });
+
+    // 打开筛选弹窗（日志按钮左侧）
+    fireEvent.click(screen.getByRole("button", { name: "筛选" }));
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+
+    // 选择 Mac 平台：仅 macOS 条目保留
+    fireEvent.click(screen.getByRole("button", { name: "Mac" }));
+    expect(await screen.findByText("应用-com.mac")).toBeTruthy();
+    expect(screen.queryByText("应用-com.free")).toBeNull();
+    expect(screen.queryByText("应用-com.purchased")).toBeNull();
+  });
 });
