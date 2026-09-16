@@ -8,6 +8,7 @@ import {
   ExternalLink,
   Loader2,
   ListFilter,
+  ScrollText,
   ShoppingCart,
   Square,
 } from "lucide-react";
@@ -282,6 +283,7 @@ export function HomePage() {
           {t("MainPage/Action/FilterButton.Content")}
         </Button>
         <Button variant="outline" size="sm" onClick={() => openLog(true)}>
+          <ScrollText className="size-4" />
           {t("MainPage/Action/OpenLogButton.Content")}
         </Button>
       </div>
