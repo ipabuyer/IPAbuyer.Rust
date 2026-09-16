@@ -66,9 +66,9 @@ fn to_dto(result: LoginResult) -> AuthResultDto {
     }
 }
 
-fn client_error_message(error: ClientError) -> String {
+fn client_error_message(lang: crate::i18n::Lang, error: ClientError) -> String {
     match error {
-        ClientError::Canceled => "操作已取消".into(),
+        ClientError::Canceled => lang.message("error-operation-canceled"),
     }
 }
 
@@ -90,7 +90,9 @@ fn execute_login(
     let account = account.trim().to_string();
     let password = password.trim().to_string();
     if account.is_empty() || password.is_empty() {
-        return Err("请填写 Apple 账户与密码".into());
+        return Err(
+            crate::i18n::Lang::from_state(state).message("error-app-name-and-password-required"),
+        );
     }
 
     let exe_path = crate::resolver::resolve_executable_path(state);
@@ -164,9 +166,10 @@ pub fn auth_logout(state: State<'_, AppState>) -> Result<LogoutDto, String> {
     let exe_path = crate::resolver::resolve_executable_path(&state);
     let client = IpatoolClient::new(exe_path);
     let cancel = AtomicBool::new(false);
+    let lang = crate::i18n::Lang::from_state(&state);
     let result = client
         .auth_logout(&cancel, None)
-        .map_err(|e| client_error_message(e))?;
+        .map_err(|e| client_error_message(lang, e))?;
 
     if result.timed_out || result.error_message.is_some() {
         push_log(&state, "error", "Auth/Log/LogoutFailed", &[]);
@@ -207,9 +210,10 @@ pub fn auth_info(state: State<'_, AppState>) -> Result<AuthInfoDto, String> {
 
     let client = IpatoolClient::new(exe_path);
     let cancel = AtomicBool::new(false);
+    let lang = crate::i18n::Lang::from_state(&state);
     let result = client
         .auth_info(passphrase.as_deref(), &cancel, None)
-        .map_err(|e| client_error_message(e))?;
+        .map_err(|e| client_error_message(lang, e))?;
 
     let payload = result.output.as_raw().to_string();
 
@@ -292,6 +296,7 @@ mod tests {
 
     #[test]
     fn client_error_message_localizes_cancel() {
-        assert_eq!(client_error_message(ClientError::Canceled), "操作已取消");
+        let message = client_error_message(crate::i18n::Lang::ZH_HANS, ClientError::Canceled);
+        assert_eq!(message, "操作已取消。");
     }
 }

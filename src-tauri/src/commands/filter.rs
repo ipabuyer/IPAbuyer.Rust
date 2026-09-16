@@ -57,7 +57,11 @@ pub fn filter_set(
     if let Some(platform) = platform.as_deref() {
         let platform = platform.trim();
         if !PLATFORM_FILTERS.contains(&platform) {
-            return Err(format!("无效的平台筛选: {platform}"));
+            return Err(format!(
+                "{}",
+                crate::i18n::Lang::from_state(&state)
+                    .message_with("error-invalid-platform-filter", &[("value", platform)]),
+            ));
         }
         filter.platform = platform.into();
     }
@@ -98,10 +102,14 @@ fn apply_developer_options(selection: &mut FilterSelection, developers: Vec<Stri
 }
 
 /// 打开筛选窗口：已存在则显示并聚焦，不存在（用户已关闭）则重建。
-/// 标题由前端按当前语言传入（原生标题栏无法使用前端 i18n 资源）。
+/// 标题由后端 Fluent 按当前语言解析（window-title-filter）。
 /// async：窗口创建涉及异步初始化，官方建议在 async 命令中执行。
 #[tauri::command]
-pub async fn filter_show_window(app: AppHandle, title: Option<String>) -> Result<(), String> {
+pub async fn filter_show_window(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let title = crate::i18n::Lang::from_state(&state).message("window-title-filter");
     match app.get_webview_window(FILTER_WINDOW_LABEL) {
         Some(window) => {
             let _ = window.show();
@@ -109,7 +117,7 @@ pub async fn filter_show_window(app: AppHandle, title: Option<String>) -> Result
             Ok(())
         }
         None => WebviewWindowBuilder::new(&app, FILTER_WINDOW_LABEL, WebviewUrl::App("index.html".into()))
-            .title(title.unwrap_or_else(|| FILTER_WINDOW_LABEL.into()))
+            .title(title)
             .inner_size(340.0, 280.0)
             .resizable(false)
             .build()

@@ -40,6 +40,11 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ureq = "3"
 
+# 后端 i18n（Fluent）：命令错误与子窗口标题的本地化；auto 按系统 locale 解析
+fluent-templates = { version = "0.13", features = ["macros"] }
+sys-locale = "0.3"
+unic-langid = "0.9"
+
 [profile.release]
 strip = true
 lto = true

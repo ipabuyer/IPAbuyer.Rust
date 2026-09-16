@@ -60,7 +60,11 @@ fn info(state: &AppState) -> IpatoolInfo {
 
 fn set_flavor(state: &AppState, flavor: String) -> Result<(), String> {
     if flavor != IPATOOL_FLAVOR_MAIN && flavor != IPATOOL_FLAVOR_CUSTOM {
-        return Err(format!("无效的 ipatool 来源: {flavor}"));
+        return Err(format!(
+            "{}",
+            crate::i18n::Lang::from_state(state)
+                .message_with("error-invalid-ipatool-flavor", &[("flavor", flavor.as_str())]),
+        ));
     }
     state.update_config(|c| c.ipatool_flavor = flavor)?;
     Ok(())
@@ -69,10 +73,15 @@ fn set_flavor(state: &AppState, flavor: String) -> Result<(), String> {
 fn set_custom_path(state: &AppState, path: String) -> Result<(), String> {
     let trimmed = path.trim().to_string();
     if !trimmed.to_lowercase().ends_with(".exe") {
-        return Err("自定义 ipatool 必须是 .exe 文件".into());
+        return Err(
+            crate::i18n::Lang::from_state(state).message("error-custom-ipatool-not-exe"),
+        );
     }
     if !PathBuf::from(&trimmed).is_file() {
-        return Err(format!("文件不存在: {trimmed}"));
+        return Err(
+            crate::i18n::Lang::from_state(state)
+                .message_with("error-file-not-found", &[("path", trimmed.as_str())]),
+        );
     }
     state.update_config(|c| {
         c.custom_ipatool_path = Some(trimmed.clone());
@@ -94,10 +103,13 @@ fn delete_custom(state: &AppState) -> Result<(), String> {
 fn export(state: &AppState) -> Result<String, String> {
     let source = crate::resolver::resolve_executable_path(state);
     if !source.is_file() {
-        return Err("内置 ipatool.exe 不存在".into());
+        return Err(crate::i18n::Lang::from_state(state).message("error-builtin-ipatool-missing"));
     }
     let target = state.config.lock().unwrap().download_directory().join("ipatool.exe");
-    std::fs::copy(&source, &target).map_err(|e| format!("导出失败: {e}"))?;
+    std::fs::copy(&source, &target).map_err(|e| {
+        crate::i18n::Lang::from_state(state)
+            .message_with("error-export-failed", &[("error", &e.to_string())])
+    })?;
     Ok(target.to_string_lossy().into_owned())
 }
 
@@ -130,10 +142,13 @@ pub fn ipatool_export(state: State<'_, AppState>) -> Result<String, String> {
 #[tauri::command]
 pub fn ipatool_clear_data() -> Result<(), String> {
     let dir = dirs::home_dir()
-        .ok_or("无法解析用户目录")?
+        .ok_or_else(|| crate::i18n::Lang::ZH_HANS.message("error-resolve-user-dir-failed"))?
         .join(".ipatool");
     if dir.is_dir() {
-        std::fs::remove_dir_all(&dir).map_err(|e| format!("清空失败: {e}"))?;
+        std::fs::remove_dir_all(&dir).map_err(|e| {
+            crate::i18n::Lang::ZH_HANS
+                .message_with("error-clear-ipatool-data-failed", &[("error", &e.to_string())])
+        })?;
     }
     Ok(())
 }
@@ -147,7 +162,8 @@ pub fn legacy_db_exists() -> bool {
 /// 导入旧版数据库：关闭当前连接后覆盖，再重新打开（schema 相同，由 core 迁移）。
 #[tauri::command(async)]
 pub fn legacy_db_import(state: State<'_, AppState>) -> Result<(), String> {
-    let source = legacy_db_path().ok_or("未找到旧版数据库")?;
+    let source = legacy_db_path()
+        .ok_or_else(|| crate::i18n::Lang::ZH_HANS.message("error-legacy-db-not-found"))?;
     import_legacy_db(&state, &source)
 }
 
@@ -157,9 +173,15 @@ fn import_legacy_db(state: &AppState, source: &std::path::Path) -> Result<(), St
         *db = None; // 释放文件句柄
     }
     let target = state.db_path().clone();
-    std::fs::copy(source, &target).map_err(|e| format!("导入失败: {e}"))?;
+    std::fs::copy(source, &target).map_err(|e| {
+        crate::i18n::Lang::ZH_HANS
+            .message_with("error-import-legacy-db-failed", &[("error", &e.to_string())])
+    })?;
     let db = crate::core::db::PurchasedAppsDb::open(&target)
-        .map_err(|e| format!("重新打开数据库失败: {e}"))?;
+        .map_err(|e| {
+            crate::i18n::Lang::ZH_HANS
+                .message_with("error-reopen-db-failed", &[("error", &e.to_string())])
+        })?;
     *state.db.lock().unwrap() = Some(db);
     state.update_config(|c| c.legacy_db_imported = true)?;
     Ok(())

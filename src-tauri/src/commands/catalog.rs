@@ -67,13 +67,14 @@ pub fn catalog_search(
     };
 
     // 已购查找键为「平台:bundleId」组合键（同一 bundleId 在两个商店是不同条目）。
+    let lang = crate::i18n::Lang::from_state(&state);
     let purchased: HashMap<String, String> = match &account {
         Some(account) => state
             .db
             .lock()
             .unwrap()
             .as_ref()
-            .ok_or("数据库未初始化")?
+            .ok_or_else(|| lang.message("error-db-not-initialized"))?
             .get_purchased_apps(account)
             .map_err(|e| e.to_string())?
             .into_iter()

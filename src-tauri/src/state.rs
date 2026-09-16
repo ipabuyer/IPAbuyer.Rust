@@ -145,8 +145,10 @@ impl AppState {
             .unwrap_or_default();
 
         let db_path = data_dir.join("PurchasedAppDb.db");
-        let db = PurchasedAppsDb::open(&db_path)
-            .map_err(|e| format!("打开已购数据库失败: {e}"))?;
+        let db = PurchasedAppsDb::open(&db_path).map_err(|e| {
+            let lang = crate::i18n::Lang::from_config(&config.display_language);
+            lang.message_with("error-open-db-failed", &[("error", &e.to_string())])
+        })?;
 
         Ok(Self {
             config: Mutex::new(config),

@@ -52,6 +52,7 @@ pub fn purchase(
     purchased: String,
     platform: String,
 ) -> Result<PurchaseDto, String> {
+    let lang = crate::i18n::Lang::from_state(&state);
     let bundle_id = bundle_id.trim().to_string();
     if bundle_id.is_empty() {
         return Ok(PurchaseDto {
@@ -85,7 +86,7 @@ pub fn purchase(
     };
 
     if is_mock {
-        mark_purchased(&state, &bundle_id, &account, &platform)?;
+        mark_purchased(&state, lang, &bundle_id, &account, &platform)?;
         push_log(&state, "success", "Purchase/Log/Success", &[&bundle_id]);
         return Ok(PurchaseDto {
             bundle_id,
@@ -96,7 +97,8 @@ pub fn purchase(
 
     push_log(&state, "info", "Purchase/Log/Start", &[&bundle_id]);
     let exe_path = crate::resolver::resolve_executable_path(&state);
-    let passphrase = crate::state::get_passphrase().ok_or("缺少加密密钥，请先重新登录")?;
+    let passphrase = crate::state::get_passphrase()
+        .ok_or_else(|| lang.message("error-missing-passphrase"))?;
     let detailed_log = state.config.lock().unwrap().detailed_ipatool_log;
 
     let client = IpatoolClient::new(exe_path);
@@ -110,7 +112,9 @@ pub fn purchase(
         client.purchase_app(&bundle_id, Some(&passphrase), &cancel, None, &platform)
     };
 
-    let result = outcome_result.map_err(|e| format!("购买命令执行失败: {e:?}"))?;
+    let result = outcome_result.map_err(|e| {
+        lang.message_with("error-purchase-command-failed", &[("error", &format!("{e:?}"))])
+    })?;
 
     let payload = result.output_or_error_raw();
     let payload_ref = if payload.trim().is_empty() {
@@ -126,7 +130,7 @@ pub fn purchase(
             | PurchaseOutcome::AlreadyOwned
             | PurchaseOutcome::NeedsOwnedConfirmation
     ) {
-        mark_purchased(&state, &bundle_id, &account, &platform)?;
+        mark_purchased(&state, lang, &bundle_id, &account, &platform)?;
     }
 
     match outcome {
@@ -151,12 +155,13 @@ pub fn purchase(
 
 fn mark_purchased(
     state: &AppState,
+    lang: crate::i18n::Lang,
     bundle_id: &str,
     account: &str,
     platform: &str,
 ) -> Result<(), String> {
     let db = state.db.lock().unwrap();
-    let db = db.as_ref().ok_or("数据库未初始化")?;
+    let db = db.as_ref().ok_or_else(|| lang.message("error-db-not-initialized"))?;
     db.save_purchased_app(bundle_id, account, Some("purchased"), platform)
         .map_err(|e| e.to_string())
 }
@@ -169,15 +174,16 @@ pub fn purchases_mark(
     status: String,
     platform: String,
 ) -> Result<(), String> {
+    let lang = crate::i18n::Lang::from_state(&state);
     let account = state
         .session
         .lock()
         .unwrap()
         .account
         .clone()
-        .ok_or("未登录")?;
+        .ok_or_else(|| lang.message("error-not-signed-in"))?;
     let db = state.db.lock().unwrap();
-    let db = db.as_ref().ok_or("数据库未初始化")?;
+    let db = db.as_ref().ok_or_else(|| lang.message("error-db-not-initialized"))?;
     db.save_purchased_app(&bundle_id, &account, Some(status.as_str()), &platform)
         .map_err(|e| e.to_string())
 }
@@ -189,15 +195,16 @@ pub fn purchases_unmark(
     bundle_id: String,
     platform: String,
 ) -> Result<(), String> {
+    let lang = crate::i18n::Lang::from_state(&state);
     let account = state
         .session
         .lock()
         .unwrap()
         .account
         .clone()
-        .ok_or("未登录")?;
+        .ok_or_else(|| lang.message("error-not-signed-in"))?;
     let db = state.db.lock().unwrap();
-    let db = db.as_ref().ok_or("数据库未初始化")?;
+    let db = db.as_ref().ok_or_else(|| lang.message("error-db-not-initialized"))?;
     db.remove_purchased_app(&bundle_id, &account, &platform)
         .map_err(|e| e.to_string())
 }

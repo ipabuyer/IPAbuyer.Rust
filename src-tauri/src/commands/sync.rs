@@ -35,6 +35,8 @@ pub struct SyncResultDto {
 /// 未登录返回 InvalidAccount；测试账户返回 Mock（不执行）；进行中返回 AlreadyRunning。
 #[tauri::command]
 pub fn sync_start(app: AppHandle, state: State<'_, AppState>) -> Result<SyncResultDto, String> {
+    let lang = crate::i18n::Lang::from_state(&state);
+    let t = |key: &str| lang.message(key);
     let (account, is_mock, logged_in) = {
         let session = state.session.lock().unwrap();
         (
@@ -68,9 +70,10 @@ pub fn sync_start(app: AppHandle, state: State<'_, AppState>) -> Result<SyncResu
         });
     }
 
-    let account = account.ok_or("未登录")?;
+    let account = account.ok_or_else(|| t("error-not-signed-in"))?;
     let account_for_record = account.clone();
-    let passphrase = crate::state::get_passphrase().ok_or("缺少加密密钥，请先重新登录")?;
+    let passphrase = crate::state::get_passphrase()
+        .ok_or_else(|| t("error-missing-passphrase"))?;
     let exe_path = crate::resolver::resolve_executable_path(&state);
     let detailed_log = state.config.lock().unwrap().detailed_ipatool_log;
 
@@ -79,7 +82,7 @@ pub fn sync_start(app: AppHandle, state: State<'_, AppState>) -> Result<SyncResu
     let cancel = Arc::clone(&state.sync.cancel);
 
     let mut db_guard = state.db.lock().unwrap();
-    let db = db_guard.as_mut().ok_or("数据库未初始化")?;
+    let db = db_guard.as_mut().ok_or_else(|| t("error-db-not-initialized"))?;
     let service = &state.sync.service;
     let app_for_progress = app.clone();
     let log_buffer = &state.log_buffer;
@@ -116,7 +119,7 @@ pub fn sync_start(app: AppHandle, state: State<'_, AppState>) -> Result<SyncResu
 
     let _ = db_guard
         .as_ref()
-        .ok_or("数据库未初始化")?
+        .ok_or_else(|| t("error-db-not-initialized"))?
         .record_sync_attempt(&account_for_record, matches!(outcome, SyncOutcome::Completed { .. }));
 
     let dto = |outcome_name: &str, synced: i64, total: i64, message: Option<String>| SyncResultDto {
@@ -163,14 +166,16 @@ pub fn sync_status(state: State<'_, AppState>) -> SyncProgress {
 /// 上次成功同步时间（ISO 字符串或 null）。
 #[tauri::command]
 pub fn sync_last_time(state: State<'_, AppState>) -> Result<Option<String>, String> {
+    let lang = crate::i18n::Lang::from_state(&state);
+    let t = |key: &str| lang.message(key);
     let account = state
         .session
         .lock()
         .unwrap()
         .account
         .clone()
-        .ok_or("未登录")?;
+        .ok_or_else(|| t("error-not-signed-in"))?;
     let db = state.db.lock().unwrap();
-    let db = db.as_ref().ok_or("数据库未初始化")?;
+    let db = db.as_ref().ok_or_else(|| t("error-db-not-initialized"))?;
     db.get_last_successful_sync_utc(&account).map_err(|e| e.to_string())
 }

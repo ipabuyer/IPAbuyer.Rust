@@ -108,8 +108,9 @@ pub fn queue_add(
 /// 启动队列：参数在启动瞬间读取；已在运行时返回错误。
 #[tauri::command]
 pub fn queue_start(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    let lang = crate::i18n::Lang::from_state(&state);
     if state.queue.queue.is_running() {
-        return Err("队列已在运行".into());
+        return Err(lang.message("error-queue-already-running"));
     }
 
     let queue = std::sync::Arc::clone(&state.queue.queue);
@@ -117,7 +118,8 @@ pub fn queue_start(app: AppHandle, state: State<'_, AppState>) -> Result<(), Str
     cancel.store(false, std::sync::atomic::Ordering::Relaxed);
 
     let exe_path = crate::resolver::resolve_executable_path(&state);
-    let passphrase = crate::state::get_passphrase().ok_or("缺少加密密钥，请先重新登录")?;
+    let passphrase = crate::state::get_passphrase()
+        .ok_or_else(|| lang.message("error-missing-passphrase"))?;
     let (output_directory, is_mock, detailed_log) = {
         let config = state.config.lock().unwrap();
         let mock = state.session.lock().unwrap().is_mock;
