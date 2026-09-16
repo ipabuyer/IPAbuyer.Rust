@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   AppConfig,
+  AppPlatform,
   AuthInfo,
   AuthResult,
   LogoutResult,
@@ -29,13 +30,15 @@ export const api = {
 
   // ---- 搜索 / 购买 / 队列 / 日志 ----
   search: (query: string) => invoke<SearchResultItem[]>("catalog_search", { query }),
-  purchase: (bundleId: string, price: string, purchased: string) =>
-    invoke<PurchaseResult>("purchase", { bundleId, price, purchased }),
-  mark: (bundleId: string, status: string) =>
-    invoke<void>("purchases_mark", { bundleId, status }),
-  unmark: (bundleId: string) => invoke<void>("purchases_unmark", { bundleId }),
+  purchase: (bundleId: string, price: string, purchased: string, platform: AppPlatform) =>
+    invoke<PurchaseResult>("purchase", { bundleId, price, purchased, platform }),
+  mark: (bundleId: string, status: string, platform: AppPlatform) =>
+    invoke<void>("purchases_mark", { bundleId, status, platform }),
+  unmark: (bundleId: string, platform: AppPlatform) =>
+    invoke<void>("purchases_unmark", { bundleId, platform }),
   queueAdd: (item: {
     bundleId: string;
+    platform: AppPlatform;
     appId: string | null;
     name: string | null;
     developer: string | null;

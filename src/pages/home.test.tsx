@@ -63,6 +63,7 @@ const result = (bundleId: string, purchased: string, developer: string) => ({
   artworkUrl: null,
   price: "free",
   version: "1.0",
+  platform: "ios" as const,
   purchased,
 });
 
@@ -123,7 +124,7 @@ describe("HomePage", () => {
     purchaseMock.mockResolvedValue({ bundleId: "com.free", outcome: "Purchased", detail: null });
     fireEvent.click(screen.getByRole("button", { name: "购买" }));
     await vi.waitFor(() =>
-      expect(purchaseMock).toHaveBeenCalledWith("com.free", "free", "not_purchased"),
+      expect(purchaseMock).toHaveBeenCalledWith("com.free", "free", "not_purchased", "ios"),
     );
   });
 
@@ -180,7 +181,9 @@ describe("HomePage", () => {
 
     const item = await screen.findByText("标记为已购买");
     fireEvent.click(item);
-    await vi.waitFor(() => expect(markMock).toHaveBeenCalledWith("com.free", "purchased"));
+    await vi.waitFor(() =>
+      expect(markMock).toHaveBeenCalledWith("com.free", "purchased", "ios"),
+    );
   });
 
   it("right-click on a card opens the same menu", async () => {
@@ -190,6 +193,21 @@ describe("HomePage", () => {
 
     const item = await screen.findByText("标记为已购买");
     fireEvent.click(item);
-    await vi.waitFor(() => expect(markMock).toHaveBeenCalledWith("com.free", "purchased"));
+    await vi.waitFor(() => expect(markMock).toHaveBeenCalledWith("com.free", "purchased", "ios"));
+  });
+
+  it("macOS cards show a Mac badge", async () => {
+    const macResult = {
+      ...result("com.mac", "not_purchased", "Apple"),
+      platform: "macos" as const,
+    };
+    useSearch.setState({
+      query: "测试",
+      searching: false,
+      lastSearchEmpty: false,
+      results: [...useSearch.getState().results, macResult],
+    });
+
+    expect(await screen.findByText("Mac")).toBeTruthy();
   });
 });

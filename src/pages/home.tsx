@@ -108,7 +108,12 @@ export function HomePage() {
     setBusyBundle(item.bundleId);
     const label = appDisplayLabel(item);
     try {
-      const result = await api.purchase(item.bundleId, item.price, item.purchased);
+      const result = await api.purchase(
+        item.bundleId,
+        item.price,
+        item.purchased,
+        item.platform,
+      );
       switch (result.outcome) {
         case "Purchased":
           toast.success(
@@ -116,12 +121,12 @@ export function HomePage() {
               ? t("MainPage/Purchase/MockSuccess", { 0: label })
               : t("MainPage/Purchase/Success", { 0: label }),
           );
-          markLocal(item.bundleId, "purchased");
+          markLocal(item, "purchased");
           break;
         case "AlreadyOwned":
         case "NeedsOwnedConfirmation":
           toast.success(t("MainPage/Purchase/OwnedDetected", { 0: label }));
-          markLocal(item.bundleId, "purchased");
+          markLocal(item, "purchased");
           break;
         case "Skipped":
           toast.info(t("MainPage/Purchase/SkipNonFree", { 0: label }));
@@ -147,6 +152,7 @@ export function HomePage() {
     openLog(true);
     const added = await api.queueAdd({
       bundleId: item.bundleId,
+      platform: item.platform,
       appId: item.id,
       name: item.name,
       developer: item.developer,
@@ -170,18 +176,20 @@ export function HomePage() {
     void refresh();
   }
 
-  function markLocal(bundleId: string, status: string) {
+  function markLocal(item: SearchResultItem, status: string) {
     useSearch.setState((s) => ({
       results: s.results.map((r) =>
-        r.bundleId.toLowerCase() === bundleId.toLowerCase() ? { ...r, purchased: status } : r,
+        r.bundleId.toLowerCase() === item.bundleId.toLowerCase() && r.platform === item.platform
+          ? { ...r, purchased: status }
+          : r,
       ),
     }));
   }
 
   async function handleMark(item: SearchResultItem, status: string) {
     try {
-      await api.mark(item.bundleId, status);
-      markLocal(item.bundleId, status);
+      await api.mark(item.bundleId, status, item.platform);
+      markLocal(item, status);
     } catch (error) {
       toast.error(String(error));
     }
@@ -189,8 +197,8 @@ export function HomePage() {
 
   async function handleUnmark(item: SearchResultItem) {
     try {
-      await api.unmark(item.bundleId);
-      markLocal(item.bundleId, "not_purchased");
+      await api.unmark(item.bundleId, item.platform);
+      markLocal(item, "not_purchased");
     } catch (error) {
       toast.error(String(error));
     }
@@ -322,7 +330,10 @@ function AppCard({
   const { t } = useTranslation();
   const status = displayStatus(item);
   const queueItem = useQueue((s) =>
-    s.items.find((i) => i.bundleId.toLowerCase() === item.bundleId.toLowerCase()),
+    s.items.find(
+      (i) =>
+        i.bundleId.toLowerCase() === item.bundleId.toLowerCase() && i.platform === item.platform,
+    ),
   );
   const isPurchased = status === "purchased";
   const isBlocked = status === "purchase_blocked";
@@ -401,6 +412,14 @@ function AppCard({
             }
           >
             {/* WinUI3 卡片架构：版本号/状态为标题与动作区之间的独立横向列 */}
+            {item.platform === "macos" && (
+              <span
+                title={t("MainPage/Card/MacosBadge")}
+                className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+              >
+                {t("MainPage/Card/MacosBadge")}
+              </span>
+            )}
             <span
               className="w-20 shrink-0 text-right text-xs text-muted-foreground"
               title={item.version ?? undefined}

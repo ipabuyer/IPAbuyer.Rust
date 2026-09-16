@@ -89,6 +89,7 @@ const item = (overrides: Partial<SearchResultItem>): SearchResultItem => ({
   artworkUrl: null,
   price: "free",
   version: "1.0",
+  platform: "ios",
   purchased: "not_purchased",
   ...overrides,
 });
