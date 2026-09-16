@@ -30,7 +30,7 @@
 
 IPAbuyer 是一款发布至 Microsoft Store 的桌面应用，帮助用户浏览、购买（仅限免费 App）并下载 App Store 中的 App。本仓库为 Tauri 2 重写版，用于替代 WinUI 3 版。
 
-- 底层工具：[majd/ipatool](https://github.com/majd/ipatool) 2.5.0，所有认证、购买、下载经其完成
+- 底层工具：[majd/ipatool](https://github.com/majd/ipatool) 2.6.0，所有认证、购买、下载经其完成
 - 代码仓库：<https://github.com/ipabuyer/IPAbuyer.Rust>
 - 开发者网站：<https://ipa.blazesnow.com>
 - 商店身份：`IPAbuyer.IPAbuyer` / `CN=68F867E4-B304-4B5D-9818-31B1910E0771`（与 WinUI3 版一致，PFN `IPAbuyer.IPAbuyer_kr1hdvrv6tpd0`）
@@ -130,7 +130,7 @@ node scripts/eval-webview.mjs 9224 "window.__TAURI_INTERNALS__.invoke('settings_
 
 ## 6. 内置 ipatool 可执行文件
 
-1. 来源：上游正式版 `2.5.0`，`scripts/fetch-ipatool.ps1` 下载 `amd64`/`arm64` tar.gz、校验 SHA-256 与 PE 头，写入 `src-tauri/binaries/ipatool-<target-triple>.exe`（Tauri sidecar 命名，gitignore，不入 git）。
+1. 来源：上游正式版 `2.6.0`，`scripts/fetch-ipatool.ps1` 下载 `amd64`/`arm64` tar.gz、校验 SHA-256 与 PE 头，写入 `src-tauri/binaries/ipatool-<target-triple>.exe`（Tauri sidecar 命名，gitignore，不入 git）。
 2. `tauri.conf.json` 以 `bundle.externalBin` 声明；`tauri build` 会将其复制到输出目录为 `ipatool.exe`，MSIX 打包脚本原样收进包内。
 3. 路径解析（`src-tauri/src/resolver.rs`）：自定义路径（flavor=custom 且文件存在）> 应用同目录 `ipatool.exe` > PATH 兜底。
 4. 自定义 ipatool 要求版本 ≥ `2.5.0`（已购买功能依赖 2.5.0 引入的新逻辑）。
@@ -204,7 +204,7 @@ node scripts/eval-webview.mjs 9224 "window.__TAURI_INTERNALS__.invoke('settings_
 
 ## 13. ipatool 页
 
-**已实现（M4）**：内置版本卡片（release@2.5.0、"当前使用"徽章、导出）、自定义 ipatool.exe 卡片（选择/使用/删除插槽）、版本要求卡片（≥2.5.0）、详细日志开关（`detailedIpatoolLog`）、清空 ipatool 数据（`~/.ipatool/`）、majd/ipatool 仓库链接。来源选择 `ipatoolFlavor`（main/custom）与 `customIpatoolPath` 已在配置结构中就位。
+**已实现（M4）**：内置版本卡片（release@2.6.0、"当前使用"徽章、导出）、自定义 ipatool.exe 卡片（选择/使用/删除插槽）、版本要求卡片（≥2.5.0）、详细日志开关（`detailedIpatoolLog`）、清空 ipatool 数据（`~/.ipatool/`）、majd/ipatool 仓库链接。来源选择 `ipatoolFlavor`（main/custom）与 `customIpatoolPath` 已在配置结构中就位。
 
 ## 14. 日志系统
 
