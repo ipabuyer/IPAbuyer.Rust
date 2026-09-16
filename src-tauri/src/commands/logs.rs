@@ -6,9 +6,10 @@ use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 pub const LOG_WINDOW_LABEL: &str = "log";
 
 /// 打开日志窗口：已存在则显示并聚焦，不存在（用户已关闭）则重建。
+/// 标题由前端按当前语言传入（原生标题栏无法使用前端 i18n 资源）。
 /// async：窗口创建涉及异步初始化，官方建议在 async 命令中执行。
 #[tauri::command]
-pub async fn logs_show_window(app: AppHandle) -> Result<(), String> {
+pub async fn logs_show_window(app: AppHandle, title: Option<String>) -> Result<(), String> {
     match app.get_webview_window(LOG_WINDOW_LABEL) {
         Some(window) => {
             let _ = window.show();
@@ -16,7 +17,7 @@ pub async fn logs_show_window(app: AppHandle) -> Result<(), String> {
             Ok(())
         }
         None => WebviewWindowBuilder::new(&app, LOG_WINDOW_LABEL, WebviewUrl::App("index.html".into()))
-            .title("日志")
+            .title(title.unwrap_or_else(|| LOG_WINDOW_LABEL.into()))
             .inner_size(760.0, 520.0)
             .min_inner_size(480.0, 320.0)
             .build()

@@ -252,7 +252,7 @@ export function HomePage() {
             {t("MainPage/Action/CancelAllDownloadsButton.Content")}
           </Button>
         )}
-        <Button variant="outline" size="sm" onClick={() => void api.filterShow()}>
+        <Button variant="outline" size="sm" onClick={() => void api.filterShow(t("MainPage/Action/FilterButton.Content"))}>
           <ListFilter className="size-4" />
           {t("MainPage/Action/FilterButton.Content")}
         </Button>

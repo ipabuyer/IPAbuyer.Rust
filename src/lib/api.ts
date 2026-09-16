@@ -36,7 +36,7 @@ export const api = {
   filterGet: () => invoke<FilterSelection>("filter_get"),
   filterSet: (platform: string | null, developer: string | null) =>
     invoke<void>("filter_set", { platform, developer }),
-  filterShow: () => invoke<void>("filter_show_window"),
+  filterShow: (title?: string) => invoke<void>("filter_show_window", { title }),
   filterHide: () => invoke<void>("filter_hide_window"),
   mark: (bundleId: string, status: string, platform: AppPlatform) =>
     invoke<void>("purchases_mark", { bundleId, status, platform }),

@@ -98,9 +98,10 @@ fn apply_developer_options(selection: &mut FilterSelection, developers: Vec<Stri
 }
 
 /// 打开筛选窗口：已存在则显示并聚焦，不存在（用户已关闭）则重建。
+/// 标题由前端按当前语言传入（原生标题栏无法使用前端 i18n 资源）。
 /// async：窗口创建涉及异步初始化，官方建议在 async 命令中执行。
 #[tauri::command]
-pub async fn filter_show_window(app: AppHandle) -> Result<(), String> {
+pub async fn filter_show_window(app: AppHandle, title: Option<String>) -> Result<(), String> {
     match app.get_webview_window(FILTER_WINDOW_LABEL) {
         Some(window) => {
             let _ = window.show();
@@ -108,7 +109,7 @@ pub async fn filter_show_window(app: AppHandle) -> Result<(), String> {
             Ok(())
         }
         None => WebviewWindowBuilder::new(&app, FILTER_WINDOW_LABEL, WebviewUrl::App("index.html".into()))
-            .title("筛选")
+            .title(title.unwrap_or_else(|| FILTER_WINDOW_LABEL.into()))
             .inner_size(340.0, 280.0)
             .resizable(false)
             .build()

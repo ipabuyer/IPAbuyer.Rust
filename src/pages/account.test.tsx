@@ -63,7 +63,7 @@ describe("AccountPage", () => {
 
   it("opens the standalone log window from the log button", () => {
     fireEvent.click(screen.getByRole("button", { name: "日志" }));
-    expect(invokeMock).toHaveBeenCalledWith("logs_show_window");
+    expect(invokeMock).toHaveBeenCalledWith("logs_show_window", { title: expect.any(String) });
   });
 
   it("opens the apple account site via opener", () => {
