@@ -98,6 +98,7 @@ pub struct AppState {
     pub queue: QueueState,
     pub sync: SyncState,
     pub log_buffer: crate::commands::LogBuffer,
+    pub filter: Mutex<crate::commands::filter::FilterSelection>,
     config_path: PathBuf,
     db_path: PathBuf,
 }
@@ -154,6 +155,7 @@ impl AppState {
             queue: QueueState::default(),
             sync: SyncState::default(),
             log_buffer: crate::commands::LogBuffer::new(),
+            filter: Mutex::new(crate::commands::filter::FilterSelection::default()),
             config_path,
             db_path: db_path.clone(),
         })

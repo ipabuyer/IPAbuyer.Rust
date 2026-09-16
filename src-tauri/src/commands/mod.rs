@@ -5,6 +5,7 @@
 
 pub mod auth;
 pub mod catalog;
+pub mod filter;
 pub mod ipatool;
 pub mod logs;
 pub mod purchases;

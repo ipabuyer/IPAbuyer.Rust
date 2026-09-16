@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use serde::Serialize;
-use tauri::State;
+use tauri::{AppHandle, State};
 
 use crate::commands::JsMessage;
 use crate::core::appcatalog::search_parser::SearchResult;
@@ -39,8 +39,10 @@ fn to_dto(result: SearchResult) -> SearchResultDto {
 
 /// 搜索 App Store；超时或空响应返回空列表。
 /// 未登录时不合成已购状态（全部为搜索原始状态）。
+/// 搜索完成后刷新筛选窗口的开发者选项（失效选择自动回退）。
 #[tauri::command]
 pub fn catalog_search(
+    app: AppHandle,
     state: State<'_, AppState>,
     query: String,
 ) -> Result<Vec<SearchResultDto>, String> {
@@ -87,6 +89,19 @@ pub fn catalog_search(
         &|code| crate::storefront::contains(code),
         &purchased,
     );
+
+    // 开发者选项随搜索结果刷新（推送给筛选窗口与主窗口）。
+    let developers = results
+        .as_ref()
+        .map(|list| {
+            build_developer_options(
+                list.iter()
+                    .filter_map(|item| item.developer.clone())
+                    .collect(),
+            )
+        })
+        .unwrap_or_default();
+    crate::commands::filter::refresh_developer_options(&app, &state, developers);
 
     Ok(results
         .unwrap_or_default()
