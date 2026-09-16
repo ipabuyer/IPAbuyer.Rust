@@ -197,7 +197,7 @@ node scripts/eval-webview.mjs 9224 "window.__TAURI_INTERNALS__.invoke('settings_
 主页（搜索结果列表、筛选、下载进度环）**已实现（M3）**：
 
 1. 标题栏搜索框（仅主页可用）经 iTunes Search API 搜索：`https://itunes.apple.com/search?term=名称&entity=software&limit=200&country=国家代码`。
-2. 筛选：全部 / 未购买 / 已购买 + 开发者下拉筛选；空结果显示空状态提示。
+2. 筛选：全部 / 未购买 / 已购买（工具栏分段按钮）+ 平台（全部/iOS/Mac）与开发者（"筛选"弹窗，日志按钮左侧，条件即时生效）；空结果显示空状态提示。
 3. 结果卡片（SettingsCard 风格）：App 图标、名称、开发者、版本号、平台徽标（仅 macOS 条目显示 "Mac"）、购买状态文字（已购买绿 / 无法购买红）、操作按钮（未购→购买；已购→下载；无法购买→禁用）、三点菜单（标记已购/未购、复制名称/ID、在 App Store 打开）。
 4. 购买状态来自数据库合成；"无法购买"由价格推导不入库；`alreadyOwned` 或 `failed to purchase item with param 'STDQ'` 直接标记已购买不弹窗。
 5. 搜索与购买经 core（`core::appcatalog` / purchase 流程）实现；底部 InfoBar → shadcn Alert。
