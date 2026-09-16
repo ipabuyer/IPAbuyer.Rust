@@ -38,8 +38,13 @@ function SystemThemeSync() {
 
 // 显示语言跨窗口同步：设置页切换后由后端广播 language-changed，所有窗口
 // （主窗口/日志/筛选）各自 changeLanguage；"auto" 由各窗口按系统语言解析。
+// 挂载时先同步一次当前偏好：运行中新建的子窗口（日志/筛选）从
+// initialization_script 拿到的是应用启动时固化的语言，可能已过期。
 function LanguageSync() {
   useEffect(() => {
+    void invoke<{ displayLanguage: string }>("settings_get")
+      .then((config) => i18n.changeLanguage(resolveLanguage(config.displayLanguage)))
+      .catch(() => {});
     const unlistenPromise = listen<string>("language-changed", (e) => {
       void i18n.changeLanguage(resolveLanguage(e.payload));
     });

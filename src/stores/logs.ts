@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import i18next from "i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { api } from "@/lib/api";
@@ -29,13 +28,7 @@ export const useLogs = create<LogsState>((set, get) => ({
     });
   },
   setOpen: (open) => {
-    // 创建窗口时传入当前语言的标题（原生标题栏无法使用前端 i18n 资源）；
-    // 用 i18next 单例而非 @/i18n（后者导入即初始化，会覆盖测试环境的语言设置）
-    if (open) {
-      void invoke("logs_show_window", { title: i18next.t("LogViewerWindow/TitleBar.Title") });
-    } else {
-      void invoke("logs_hide_window");
-    }
+    void invoke(open ? "logs_show_window" : "logs_hide_window");
   },
   clear: () => {
     void api.logsClear();

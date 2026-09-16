@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import i18next from "i18next";
 import type { LogEntry } from "@/lib/types";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
@@ -38,14 +37,6 @@ beforeEach(async () => {
   snapshotMock.mockClear();
   snapshotMock.mockResolvedValue([]);
   useLogs.setState({ entries: [], listening: false });
-  if (!i18next.isInitialized) {
-    await i18next.init({
-      lng: "zh-Hans",
-      resources: { "zh-Hans": { translation: { "LogViewerWindow/TitleBar.Title": "日志" } } },
-      keySeparator: false,
-      nsSeparator: false,
-    });
-  }
 });
 
 describe("useLogs", () => {
@@ -79,7 +70,7 @@ describe("useLogs", () => {
 
   it("setOpen toggles the standalone log window commands", async () => {
     await useLogs.getState().setOpen(true);
-    expect(invokeMock).toHaveBeenCalledWith("logs_show_window", { title: "日志" });
+    expect(invokeMock).toHaveBeenCalledWith("logs_show_window");
 
     await useLogs.getState().setOpen(false);
     expect(invokeMock).toHaveBeenCalledWith("logs_hide_window");
