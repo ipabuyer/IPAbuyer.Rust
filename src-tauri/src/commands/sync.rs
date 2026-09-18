@@ -31,9 +31,11 @@ pub struct SyncResultDto {
     pub message: Option<String>,
 }
 
-/// 启动全量同步（阻塞至完成或取消；前端在异步上下文调用）。
+/// 启动全量同步（后台线程执行同步本体，本命令阻塞至完成或取消）。
 /// 未登录返回 InvalidAccount；测试账户返回 Mock（不执行）；进行中返回 AlreadyRunning。
-#[tauri::command]
+/// 标记 `(async)` 在独立线程运行——同步命令默认占用主线程，会冻结整个
+/// UI（点同步时发出的"打开日志窗口" invoke 被压队到同步结束才执行）。
+#[tauri::command(async)]
 pub fn sync_start(app: AppHandle, state: State<'_, AppState>) -> Result<SyncResultDto, String> {
     let lang = crate::i18n::Lang::from_state(&state);
     let t = |key: &str| lang.message(key);
