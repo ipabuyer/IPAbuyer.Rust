@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { useSearch } from "@/stores/search";
 import { SettingsCard } from "@/components/settings-card";
 import { RefreshCw, Database } from "lucide-react";
 import { useLogs } from "@/stores/logs";
@@ -59,14 +60,16 @@ export function SettingsPage() {
       .catch(() => setLastSync(null));
   }
 
-  async function persist(action: Promise<AppConfig>, successMessage?: string) {
+  async function persist(action: Promise<AppConfig>, successMessage?: string): Promise<boolean> {
     setSaving(true);
     try {
       const next = await action;
       setConfig(next);
       if (successMessage) toast.success(successMessage);
+      return true;
     } catch (error) {
       toast.error(String(error));
+      return false;
     } finally {
       setSaving(false);
     }
@@ -308,12 +311,15 @@ export function SettingsPage() {
       <CountryPickerDialog
         open={countryOpen}
         onOpenChange={setCountryOpen}
-        onPicked={(code) =>
+        onPicked={(code) => {
+          // 国家/地区变更后旧商店的搜索结果已失效，成功后清空主页搜索状态
           void persist(
             api.setCountryCode(code),
             t("Settings/CountryCode/UpdatedMessage", { 0: code }),
-          )
-        }
+          ).then((ok) => {
+            if (ok) useSearch.getState().reset();
+          });
+        }}
       />
     </div>
   );
