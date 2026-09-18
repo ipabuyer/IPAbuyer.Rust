@@ -2023,7 +2023,7 @@ dependencies = [
 
 [[package]]
 name = "ipabuyer"
-version = "2026.9.14"
+version = "2026.9.15"
 dependencies = [
  "chrono",
  "dirs 7.0.0",
