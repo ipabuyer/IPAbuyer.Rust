@@ -121,7 +121,7 @@ node scripts/eval-webview.mjs 9224 "window.__TAURI_INTERNALS__.invoke('settings_
 ## 5. 发布与版本管理
 
 1. 最终发布至 Microsoft Store；上传 `.msixbundle` 无需本地签名（商店自动重签）。
-2. 版本号采用 `年.月.日.0` CalVer，维护于 `src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml`；MSIX 版本由 `scripts/make-msix.ps1 -Version x.y.z.w` 指定，**必须严格大于商店已发布版本**。
+2. 版本号采用 `年.月.日(.0)` CalVer，唯一来源为 `package.json` 的 version 字段；`version.ps1` 将其同步到 `src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json` 与 `Cargo.lock`（`-Check` 仅检查）；MSIX 版本由 `scripts/make-msix.ps1 -Version x.y.z.w` 指定，**必须严格大于商店已发布版本**（发布 tag 要求四段式，见 `tag.ps1`）。
 3. bundle 版本经 `makeappx bundle /bv` 显式指定为与包内版本一致——缺省时 makeappx 会用当前 UTC 时间生成版本（表现为 `2026.914.940.0` 之类的乱象）。
 4. 打包流程：`pnpm build` → `pnpm msix`；产物 `msix/out/`（已 gitignore）。包内容：`IPAbuyer.exe`（前端已内嵌，无外部资源文件）、`ipatool.exe`、清单与商店图标。
 5. 前端不生成 `resources.pri`，清单直接引用 `Assets/` 原始文件名（scale-100）。
