@@ -17,4 +17,5 @@ pub mod execution;
 pub mod ipatool;
 pub mod json;
 pub mod logging;
+pub mod platform;
 pub mod purchases;

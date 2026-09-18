@@ -1,8 +1,8 @@
 ﻿# 下载 ipatool.exe 作为 Tauri sidecar（输出 Tauri target-triple 命名约定）
-# 用法: powershell -ExecutionPolicy Bypass -File scripts/fetch-ipatool.ps1 [-Version 2.5.0] [-Force]
+# 用法: powershell -ExecutionPolicy Bypass -File scripts/fetch-ipatool.ps1 [-Version 2.6.0] [-Force]
 param(
     [ValidatePattern('^$|^\d+\.\d+\.\d+$')]
-    [string]$Version = '2.5.0',
+    [string]$Version = '2.6.0',
     [switch]$Force
 )
 

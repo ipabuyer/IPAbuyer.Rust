@@ -116,20 +116,26 @@ impl IpatoolClient {
         )
     }
 
-    /// 购买（获取许可）。
+    /// 购买（获取许可）；`macos` 平台追加 `--platform macos`。
     pub fn purchase_app(
         &self,
         bundle_id: &str,
         passphrase: Option<&str>,
         cancel: &AtomicBool,
         on_log: Option<CommandLogSink>,
+        platform: &str,
     ) -> Result<IpatoolResult, ClientError> {
+        let mut arguments = vec![
+            "purchase".to_string(),
+            "--bundle-identifier".to_string(),
+            bundle_id.to_string(),
+        ];
+        if let Some(value) = crate::core::platform::ipatool_arg(platform) {
+            arguments.push("--platform".to_string());
+            arguments.push(value.to_string());
+        }
         self.execute(
-            vec![
-                "purchase".to_string(),
-                "--bundle-identifier".to_string(),
-                bundle_id.to_string(),
-            ],
+            arguments,
             passphrase,
             Some(DEFAULT_TIMEOUT),
             cancel,
@@ -147,6 +153,7 @@ impl IpatoolClient {
         on_chunk: Option<&(dyn Fn(&str) + Sync)>,
         cancel: &AtomicBool,
         on_log: Option<CommandLogSink>,
+        platform: &str,
     ) -> Result<IpatoolResult, ClientError> {
         if let Err(error) = std::fs::create_dir_all(output_directory) {
             return Ok(IpatoolResult::from_streams(
@@ -166,6 +173,7 @@ impl IpatoolClient {
                 bundle_id,
                 output_directory,
                 passphrase_value,
+                platform,
             ),
             DOWNLOAD_TIMEOUT,
             cancel,
@@ -182,9 +190,15 @@ impl IpatoolClient {
         passphrase: Option<&str>,
         cancel: &AtomicBool,
         on_log: Option<CommandLogSink>,
+        platform: Option<&str>,
     ) -> Result<IpatoolResult, ClientError> {
+        let mut arguments = command_builder::build_list_purchases_arguments(max_results, page);
+        if let Some(value) = platform.and_then(crate::core::platform::ipatool_arg) {
+            arguments.push("--platform".to_string());
+            arguments.push(value.to_string());
+        }
         self.execute(
-            command_builder::build_list_purchases_arguments(max_results, page),
+            arguments,
             passphrase,
             Some(DEFAULT_TIMEOUT),
             cancel,
@@ -234,12 +248,13 @@ impl IpatoolClient {
         on_chunk: Option<&(dyn Fn(&str) + Sync)>,
         mut on_log: Option<CommandLogSink>,
     ) -> Result<IpatoolResult, ClientError> {
-        // 详细日志：执行前上报命令行（敏感值已遮蔽），对齐 C# EmitCommandIfEnabled。
+        // 详细日志：`$` 标记输入（命令行，敏感值已遮蔽）、`<` 标记输出行，
+        // 与队列日志、里程碑日志区分，对齐 C# EmitCommandIfEnabled/EmitOutputIfEnabled。
         if let Some(sink) = on_log.as_mut() {
             sink(LogMessage::raw(
                 LogLevel::Ipatool,
                 format!(
-                    "ipatool {}",
+                    "$ ipatool {}",
                     command_builder::render_for_display(&final_arguments)
                 ),
             ));
@@ -254,13 +269,13 @@ impl IpatoolClient {
 
         match execution::execute(&request, cancel, on_chunk) {
             Ok(ExecutionOutcome::Completed(result)) => {
-                // 详细日志：上报输出行（逐行脱敏），对齐 C# EmitOutputIfEnabled。
+                // 详细日志：上报输出行（逐行脱敏，`<` 标记输出）。
                 if let Some(sink) = on_log.as_mut() {
                     let lines = command_builder::sanitized_output_lines(&result.stdout)
                         .into_iter()
                         .chain(command_builder::sanitized_output_lines(&result.stderr));
                     for line in lines {
-                        sink(LogMessage::raw(LogLevel::Ipatool, line));
+                        sink(LogMessage::raw(LogLevel::Ipatool, format!("< {line}")));
                     }
                 }
                 let streams = response_parser::normalize_streams(
@@ -379,9 +394,41 @@ mod tests {
         assert!(
             rendered
                 .iter()
-                .any(|line| line.starts_with("ipatool auth info")
+                .any(|line| line.starts_with("$ ipatool auth info")
                     && line.contains("--keychain-passphrase \"***\"")),
             "command line log missing or not sanitized: {rendered:?}"
         );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn detailed_sink_marks_input_and_output_lines() {
+        // 用真实脚本验证：输入行带 "$"，输出行带 "<"。
+        let directory =
+            std::env::temp_dir().join(format!("ipabuyer_client_out_{}", std::process::id()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let script = directory.join("echo_ipatool.cmd");
+        std::fs::write(&script, "@echo {\"success\":true}").unwrap();
+
+        let client = IpatoolClient::new(&script);
+        let cancel = AtomicBool::new(false);
+        let mut logs: Vec<LogMessage> = Vec::new();
+        {
+            let mut sink = |log: LogMessage| logs.push(log);
+            let _ = client.auth_info(Some("secret"), &cancel, Some(&mut sink));
+        }
+
+        assert!(
+            logs.iter().any(|log| matches!(&log.message,
+                NormalizedText::Raw(text) if text.starts_with("$ ipatool auth info")
+                    && text.contains("--keychain-passphrase \"***\""))),
+            "input line missing $ marker or masking: {logs:?}"
+        );
+        assert!(
+            logs.iter().any(|log| matches!(&log.message,
+                NormalizedText::Raw(text) if text.starts_with("< ") && text.contains("success"))),
+            "output line missing < marker: {logs:?}"
+        );
+        let _ = std::fs::remove_dir_all(&directory);
     }
 }

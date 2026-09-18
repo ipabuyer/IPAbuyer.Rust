@@ -31,7 +31,7 @@ function appendedHandler() {
   return listenMock.mock.calls[0][1] as unknown as (event: { payload: LogEntry[] }) => void;
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   invokeMock.mockClear();
   listenMock.mockClear();
   snapshotMock.mockClear();

@@ -15,6 +15,7 @@ const result = (bundleId: string) => ({
   artworkUrl: null,
   price: "free",
   version: "1.0",
+  platform: "ios" as const,
   purchased: "not_purchased",
 });
 
@@ -71,6 +72,21 @@ describe("useSearch", () => {
     useSearch.getState().setQuery("x");
     await expect(useSearch.getState().search()).rejects.toBe("network down");
     expect(useSearch.getState().searching).toBe(false);
+    expect(useSearch.getState().lastSearchEmpty).toBe(false);
+  });
+
+  it("reset clears query, results, and flags", () => {
+    useSearch.setState({
+      query: "wechat",
+      results: [result("a")],
+      searching: false,
+      lastSearchEmpty: false,
+    });
+
+    useSearch.getState().reset();
+
+    expect(useSearch.getState().query).toBe("");
+    expect(useSearch.getState().results).toEqual([]);
     expect(useSearch.getState().lastSearchEmpty).toBe(false);
   });
 });

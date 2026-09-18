@@ -6,6 +6,7 @@
 pub mod commands;
 pub mod core;
 pub mod events;
+pub mod i18n;
 pub mod resolver;
 pub mod state;
 pub mod storefront;
@@ -38,7 +39,10 @@ pub fn run() {
             let data_dir = app
                 .path()
                 .app_data_dir()
-                .map_err(|e| format!("解析数据目录失败: {e}"))?;
+                .map_err(|e| crate::i18n::Lang::system().message_with(
+                    "error-resolve-data-dir-failed",
+                    &[("error", &e.to_string())],
+                ))?;
             let state = state::AppState::new(data_dir).map_err(std::io::Error::other)?;
             app.manage(state);
             events::start_polling(app.handle().clone());
@@ -58,6 +62,10 @@ pub fn run() {
             commands::settings::settings_get_passphrase,
             commands::settings::settings_list_storefronts,
             commands::catalog::catalog_search,
+            commands::filter::filter_get,
+            commands::filter::filter_set,
+            commands::filter::filter_show_window,
+            commands::filter::filter_hide_window,
             commands::purchases::purchase,
             commands::purchases::purchases_mark,
             commands::purchases::purchases_unmark,

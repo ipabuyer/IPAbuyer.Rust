@@ -8,12 +8,19 @@ import enUS from "./locales/en-US.json";
 // 初始语言：Rust initialization_script 在页面脚本前注入持久化偏好；未注入时按系统语言推断
 const bootLang = (window as { __IPABUYER_LANG__?: string }).__IPABUYER_LANG__;
 
+/// 解析显示语言偏好："auto"（或空）按系统语言推断，其余原值。
+export function resolveLanguage(value?: string): string {
+  const trimmed = value?.trim();
+  if (trimmed && trimmed !== "auto") return trimmed;
+  return navigator.language.toLowerCase().startsWith("zh") ? "zh-Hans" : "en-US";
+}
+
 void i18n.use(initReactI18next).init({
   resources: {
     "zh-Hans": { translation: zhHans },
     "en-US": { translation: enUS },
   },
-  lng: bootLang ?? (navigator.language.toLowerCase().startsWith("zh") ? "zh-Hans" : "en-US"),
+  lng: resolveLanguage(bootLang),
   fallbackLng: "zh-Hans",
   keySeparator: false,
   nsSeparator: false,

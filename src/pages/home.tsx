@@ -7,6 +7,8 @@ import {
   Ellipsis,
   ExternalLink,
   Loader2,
+  ListFilter,
+  ScrollText,
   ShoppingCart,
   Square,
 } from "lucide-react";
@@ -26,21 +28,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { SettingsCard } from "@/components/settings-card";
 import { api } from "@/lib/api";
-import { appStoreUrl, collectDevelopers, displayStatus, filterResults } from "@/lib/status";
+import { appStoreUrl, displayStatus, filterResults } from "@/lib/status";
 import type { SearchResultItem } from "@/lib/types";
 import { useSearch } from "@/stores/search";
 import { useQueue } from "@/stores/queue";
 import { useSession } from "@/stores/session";
 import { useLogs } from "@/stores/logs";
+import { useFilter } from "@/stores/filter";
 import { cn } from "@/lib/utils";
 
 type Filter = "all" | "not_purchased" | "purchased";
@@ -50,6 +46,18 @@ const FILTER_KEY: Record<Filter, string> = {
   not_purchased: "MainPage/Filter/OnlyNotPurchasedItem.Content",
   purchased: "MainPage/Filter/OnlyPurchasedItem.Content",
 };
+
+/** 非 iOS 平台的卡片徽标键（iOS 为缺省平台不显示徽标）。 */
+function platformBadgeKey(platform: SearchResultItem["platform"]): string | null {
+  if (platform === "macos") return "MainPage/Platform/Macos";
+  if (platform === "ipad") return "MainPage/Platform/Ipad";
+  return null;
+}
+
+// 应用显示名：名称为空白时回退 bundleId（对齐 WinUI3 GetAppDisplayLabel）
+function appDisplayLabel(item: SearchResultItem): string {
+  return item.name?.trim() ? item.name : item.bundleId;
+}
 
 // 下载进度环（不确定式，对应 WinUI ActivityRing）
 function ActivityRing() {
@@ -67,9 +75,10 @@ export function HomePage() {
   const { running, items, refresh } = useQueue();
   const loggedIn = useSession((s) => s.loggedIn);
   const openLog = useLogs((s) => s.setOpen);
+  // 平台/开发者筛选保存在后端（独立筛选窗口共享），经 filter-changed 同步
+  const { platform: platformFilter, developer } = useFilter();
 
   const [filter, setFilter] = useState<Filter>("all");
-  const [developer, setDeveloper] = useState("all");
   const [busyBundle, setBusyBundle] = useState("");
   const [countryCode, setCountryCode] = useState("cn");
 
@@ -77,19 +86,13 @@ export function HomePage() {
     void api.getSettings().then((c) => setCountryCode(c.countryCode));
   }, []);
 
-  const developers = useMemo(() => collectDevelopers(results), [results]);
-
-  // 搜索结果变化后，已选开发者不在新结果中时回退为全部开发者
   useEffect(() => {
-    if (developer === "all") return;
-    if (!developers.some((d) => d.toLowerCase() === developer.toLowerCase())) {
-      setDeveloper("all");
-    }
-  }, [developers, developer]);
+    void useFilter.getState().init();
+  }, []);
 
   const filtered = useMemo(
-    () => filterResults(results, filter, developer),
-    [results, filter, developer],
+    () => filterResults(results, filter, developer, platformFilter),
+    [results, filter, developer, platformFilter],
   );
 
   function requireLogin(): boolean {
@@ -101,26 +104,41 @@ export function HomePage() {
   async function handlePurchase(item: SearchResultItem) {
     if (!requireLogin()) return;
     setBusyBundle(item.bundleId);
+    const label = appDisplayLabel(item);
     try {
-      const result = await api.purchase(item.bundleId, item.price, item.purchased);
+      const result = await api.purchase(
+        item.bundleId,
+        item.price,
+        item.purchased,
+        item.platform,
+      );
       switch (result.outcome) {
         case "Purchased":
-          toast.success(result.detail === "Mock" ? t("MainPage/Purchase/MockSuccess") : t("MainPage/Purchase/Success"));
-          markLocal(item.bundleId, "purchased");
+          toast.success(
+            result.detail === "Mock"
+              ? t("MainPage/Purchase/MockSuccess", { 0: label })
+              : t("MainPage/Purchase/Success", { 0: label }),
+          );
+          markLocal(item, "purchased");
           break;
         case "AlreadyOwned":
         case "NeedsOwnedConfirmation":
-          toast.success(t("MainPage/Purchase/OwnedDetected"));
-          markLocal(item.bundleId, "purchased");
+          toast.success(t("MainPage/Purchase/OwnedDetected", { 0: label }));
+          markLocal(item, "purchased");
           break;
         case "Skipped":
-          toast.info(t("MainPage/Purchase/SkipNonFree"));
+          toast.info(t("MainPage/Purchase/SkipNonFree", { 0: label }));
           break;
         default:
-          toast.error(t("MainPage/Purchase/Failed"), { description: result.detail ?? undefined });
+          toast.error(
+            t("MainPage/Purchase/Failed", {
+              0: label,
+              1: result.detail?.trim() || t("MainPage/Purchase/UnknownError"),
+            }),
+          );
       }
     } catch (error) {
-      toast.error(t("MainPage/Purchase/Failed"), { description: String(error) });
+      toast.error(t("MainPage/Purchase/Failed", { 0: label, 1: String(error) }));
     } finally {
       setBusyBundle("");
     }
@@ -128,8 +146,11 @@ export function HomePage() {
 
   async function handleDownload(item: SearchResultItem) {
     if (!requireLogin()) return;
+    // 下载的可见反馈少（进度环不明显），自动展开日志窗口展示队列过程
+    openLog(true);
     const added = await api.queueAdd({
       bundleId: item.bundleId,
+      platform: item.platform,
       appId: item.id,
       name: item.name,
       developer: item.developer,
@@ -145,7 +166,7 @@ export function HomePage() {
       try {
         await api.queueStart();
       } catch (error) {
-        toast.error(t("MainPage/DownloadQueue/StartFailed"), { description: String(error) });
+        toast.error(t("MainPage/DownloadQueue/StartFailed", { 0: String(error) }));
         void refresh();
         return;
       }
@@ -153,18 +174,20 @@ export function HomePage() {
     void refresh();
   }
 
-  function markLocal(bundleId: string, status: string) {
+  function markLocal(item: SearchResultItem, status: string) {
     useSearch.setState((s) => ({
       results: s.results.map((r) =>
-        r.bundleId.toLowerCase() === bundleId.toLowerCase() ? { ...r, purchased: status } : r,
+        r.bundleId.toLowerCase() === item.bundleId.toLowerCase() && r.platform === item.platform
+          ? { ...r, purchased: status }
+          : r,
       ),
     }));
   }
 
   async function handleMark(item: SearchResultItem, status: string) {
     try {
-      await api.mark(item.bundleId, status);
-      markLocal(item.bundleId, status);
+      await api.mark(item.bundleId, status, item.platform);
+      markLocal(item, status);
     } catch (error) {
       toast.error(String(error));
     }
@@ -172,20 +195,21 @@ export function HomePage() {
 
   async function handleUnmark(item: SearchResultItem) {
     try {
-      await api.unmark(item.bundleId);
-      markLocal(item.bundleId, "not_purchased");
+      await api.unmark(item.bundleId, item.platform);
+      markLocal(item, "not_purchased");
     } catch (error) {
       toast.error(String(error));
     }
   }
 
-  async function handleCopy(text: string | null) {
-    if (!text) {
-      toast.info(t("MainPage/Log/CopyFieldEmpty"));
+  async function handleCopy(text: string | null, field: "name" | "id") {
+    const fieldLabel = t(field === "name" ? "MainPage/Field/Name" : "MainPage/Field/Id");
+    if (!text?.trim()) {
+      toast.info(t("MainPage/Log/CopyFieldEmpty", { 0: fieldLabel }));
       return;
     }
     await navigator.clipboard.writeText(text);
-    toast.success(t("MainPage/Log/CopyFieldSuccess"));
+    toast.success(t("MainPage/Log/CopyFieldSuccess", { 0: fieldLabel, 1: 1 }));
   }
 
   async function handleOpenAppStore(item: SearchResultItem) {
@@ -196,7 +220,7 @@ export function HomePage() {
     try {
       await openUrl(appStoreUrl(countryCode, item.id));
     } catch (error) {
-      toast.error(t("MainPage/Log/AppStoreOpenFailed"), { description: String(error) });
+      toast.error(t("MainPage/Log/AppStoreOpenFailed", { 0: String(error) }));
     }
   }
 
@@ -220,19 +244,6 @@ export function HomePage() {
             </button>
           ))}
         </div>
-        <Select value={developer} onValueChange={setDeveloper}>
-          <SelectTrigger size="sm" className="w-44 text-xs">
-            <SelectValue placeholder={t("MainPage/DeveloperSelectorAllItem.Content")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("MainPage/DeveloperSelectorAllItem.Content")}</SelectItem>
-            {developers.map((name) => (
-              <SelectItem key={name} value={name}>
-                {name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
         <div className="flex-1" />
         {downloading && <ActivityRing />}
         {downloading && (
@@ -241,7 +252,12 @@ export function HomePage() {
             {t("MainPage/Action/CancelAllDownloadsButton.Content")}
           </Button>
         )}
+        <Button variant="outline" size="sm" onClick={() => void api.filterShow()}>
+          <ListFilter className="size-4" />
+          {t("MainPage/Action/FilterButton.Content")}
+        </Button>
         <Button variant="outline" size="sm" onClick={() => openLog(true)}>
+          <ScrollText className="size-4" />
           {t("MainPage/Action/OpenLogButton.Content")}
         </Button>
       </div>
@@ -264,7 +280,7 @@ export function HomePage() {
           <div className="space-y-2">
             {filtered.map((item) => (
               <AppCard
-                key={item.bundleId}
+                key={`${item.platform}:${item.bundleId}`}
                 item={item}
                 busy={busyBundle === item.bundleId}
                 onPurchase={() => void handlePurchase(item)}
@@ -298,13 +314,16 @@ function AppCard({
   onDownload: () => void;
   onMark: () => void;
   onUnmark: () => void;
-  onCopy: (text: string | null) => Promise<void>;
+  onCopy: (text: string | null, field: "name" | "id") => Promise<void>;
   onOpenAppStore: () => void;
 }) {
   const { t } = useTranslation();
   const status = displayStatus(item);
   const queueItem = useQueue((s) =>
-    s.items.find((i) => i.bundleId.toLowerCase() === item.bundleId.toLowerCase()),
+    s.items.find(
+      (i) =>
+        i.bundleId.toLowerCase() === item.bundleId.toLowerCase() && i.platform === item.platform,
+    ),
   );
   const isPurchased = status === "purchased";
   const isBlocked = status === "purchase_blocked";
@@ -347,11 +366,11 @@ function AppCard({
           <Item onClick={onMark}>{t("MainPage/Context/MarkPurchasedItem.Text")}</Item>
         )}
         <Separator />
-        <Item onClick={() => void onCopy(item.name)}>
+        <Item onClick={() => void onCopy(item.name, "name")}>
           <Copy className="size-4" />
           {t("MainPage/Context/CopyNameItem.Text")}
         </Item>
-        <Item onClick={() => void onCopy(item.bundleId)}>
+        <Item onClick={() => void onCopy(item.bundleId, "id")}>
           <Copy className="size-4" />
           {t("MainPage/Context/CopyIdItem.Text")}
         </Item>
@@ -377,12 +396,25 @@ function AppCard({
                 <img
                   src={item.artworkUrl}
                   alt=""
+                  loading="lazy"
+                  decoding="async"
                   className="size-12 shrink-0 rounded-lg object-cover"
                 />
               ) : undefined
             }
           >
             {/* WinUI3 卡片架构：版本号/状态为标题与动作区之间的独立横向列 */}
+            {(() => {
+              const badgeKey = platformBadgeKey(item.platform);
+              return badgeKey ? (
+                <span
+                  title={t(badgeKey)}
+                  className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+                >
+                  {t(badgeKey)}
+                </span>
+              ) : null;
+            })()}
             <span
               className="w-20 shrink-0 text-right text-xs text-muted-foreground"
               title={item.version ?? undefined}
@@ -399,7 +431,13 @@ function AppCard({
               {statusText}
             </span>
             {isBlocked && (
-              <span title={t("MainPage/PurchaseBlockedReason/NonFree")}>
+              <span
+                title={
+                  item.price.trim()
+                    ? t("MainPage/PurchaseBlockedReason/NonFree", { 0: item.price.trim() })
+                    : t("MainPage/PurchaseBlockedReason/Unknown")
+                }
+              >
                 <Ellipsis className="size-4 text-muted-foreground" />
               </span>
             )}

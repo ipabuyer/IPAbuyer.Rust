@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { useSearch } from "@/stores/search";
 import { SettingsCard } from "@/components/settings-card";
 import { RefreshCw, Database } from "lucide-react";
 import { useLogs } from "@/stores/logs";
@@ -34,7 +35,7 @@ const DEVELOPER_SITE = "https://ipa.blazesnow.com";
 const PROJECT_REPO = "https://github.com/ipabuyer/ipabuyer";
 
 export function SettingsPage() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [version, setVersion] = useState("");
   const [countryOpen, setCountryOpen] = useState(false);
@@ -59,29 +60,24 @@ export function SettingsPage() {
       .catch(() => setLastSync(null));
   }
 
-  async function persist(action: Promise<AppConfig>, successMessage?: string) {
+  async function persist(action: Promise<AppConfig>, successMessage?: string): Promise<boolean> {
     setSaving(true);
     try {
       const next = await action;
       setConfig(next);
       if (successMessage) toast.success(successMessage);
+      return true;
     } catch (error) {
       toast.error(String(error));
+      return false;
     } finally {
       setSaving(false);
     }
   }
 
   async function handleLanguageChange(language: string) {
+    // 保存后由后端广播 language-changed，所有窗口（含本窗口）统一切换
     await persist(api.setDisplayLanguage(language));
-    // 即时生效，无需重启（auto 时按系统语言解析）
-    const resolved =
-      language === "auto"
-        ? navigator.language.toLowerCase().startsWith("zh")
-          ? "zh-Hans"
-          : "en-US"
-        : language;
-    await i18n.changeLanguage(resolved);
   }
 
   async function handlePickDownloadDirectory() {
@@ -156,9 +152,9 @@ export function SettingsPage() {
     try {
       await api.legacyDbImport();
       setLegacyExists(false);
-      toast.success(t("Settings/Database/Clear/SuccessMessage"));
+      toast.success(t("Settings/Database/LegacyImport/SuccessMessage"));
     } catch (error) {
-      toast.error(String(error));
+      toast.error(t("Settings/Database/LegacyImport/FailMessage", { 0: String(error) }));
     }
   }
 
@@ -315,12 +311,15 @@ export function SettingsPage() {
       <CountryPickerDialog
         open={countryOpen}
         onOpenChange={setCountryOpen}
-        onPicked={(code) =>
+        onPicked={(code) => {
+          // 国家/地区变更后旧商店的搜索结果已失效，成功后清空主页搜索状态
           void persist(
             api.setCountryCode(code),
             t("Settings/CountryCode/UpdatedMessage", { 0: code }),
-          )
-        }
+          ).then((ok) => {
+            if (ok) useSearch.getState().reset();
+          });
+        }}
       />
     </div>
   );

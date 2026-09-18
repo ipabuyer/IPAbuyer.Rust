@@ -34,30 +34,35 @@ pub fn build_standard_arguments(
     final_arguments
 }
 
-/// 构建下载命令参数（含 `--purchase`，下载即购买）。
+/// 构建下载命令参数（含 `--purchase`，下载即购买）；`macos` 平台追加
+/// `--platform macos`（iOS 为 ipatool 缺省行为不传参）。
 pub fn build_download_arguments(
     bundle_id: &str,
     output_directory: &str,
     passphrase: &str,
+    platform: &str,
 ) -> Vec<String> {
-    [
-        "download",
-        "--output",
-        output_directory,
-        "--bundle-identifier",
-        bundle_id,
-        "--purchase",
-        "--keychain-passphrase",
-        passphrase,
-        "--format",
-        "json",
-        "--non-interactive",
-        "--verbose",
-    ]
-    .iter()
-    .copied()
-    .map(str::to_string)
-    .collect()
+    let mut arguments = vec![
+        "download".to_string(),
+        "--output".to_string(),
+        output_directory.to_string(),
+        "--bundle-identifier".to_string(),
+        bundle_id.to_string(),
+        "--purchase".to_string(),
+    ];
+    if let Some(value) = crate::core::platform::ipatool_arg(platform) {
+        arguments.push("--platform".to_string());
+        arguments.push(value.to_string());
+    }
+    arguments.push("--keychain-passphrase".to_string());
+    arguments.push(passphrase.to_string());
+    arguments.extend(
+        ["--format", "json", "--non-interactive", "--verbose"]
+            .iter()
+            .copied()
+            .map(str::to_string),
+    );
+    arguments
 }
 
 /// 构建 list-purchases 命令参数；单页数量受 ipatool 限制不得超过 100。
@@ -220,7 +225,7 @@ mod tests {
 
     #[test]
     fn build_download_arguments_builds_complete_command() {
-        let arguments = build_download_arguments("com.example.app", "C:\\Downloads", "secret");
+        let arguments = build_download_arguments("com.example.app", "C:\\Downloads", "secret", "ios");
 
         assert_eq!(
             arguments,
@@ -239,6 +244,22 @@ mod tests {
                 "--verbose"
             ]
         );
+    }
+
+    #[test]
+    fn build_download_arguments_appends_platform_for_macos() {
+        let arguments =
+            build_download_arguments("com.example.app", "C:\\Downloads", "secret", "macos");
+
+        assert!(arguments.contains(&"--platform".to_string()));
+        let position = arguments
+            .iter()
+            .position(|argument| argument == "--platform")
+            .unwrap();
+        assert_eq!(arguments[position + 1], "macos");
+        // 平台参数位于 --purchase 之后、密钥之前
+        assert!(arguments.contains(&"--purchase".to_string()));
+        assert!(arguments.contains(&"--keychain-passphrase".to_string()));
     }
 
     #[test]

@@ -1,8 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   AppConfig,
+  AppPlatform,
   AuthInfo,
   AuthResult,
+  FilterSelection,
   LogoutResult,
   PurchaseResult,
   QueueStatus,
@@ -29,13 +31,20 @@ export const api = {
 
   // ---- 搜索 / 购买 / 队列 / 日志 ----
   search: (query: string) => invoke<SearchResultItem[]>("catalog_search", { query }),
-  purchase: (bundleId: string, price: string, purchased: string) =>
-    invoke<PurchaseResult>("purchase", { bundleId, price, purchased }),
-  mark: (bundleId: string, status: string) =>
-    invoke<void>("purchases_mark", { bundleId, status }),
-  unmark: (bundleId: string) => invoke<void>("purchases_unmark", { bundleId }),
+  purchase: (bundleId: string, price: string, purchased: string, platform: AppPlatform) =>
+    invoke<PurchaseResult>("purchase", { bundleId, price, purchased, platform }),
+  filterGet: () => invoke<FilterSelection>("filter_get"),
+  filterSet: (platform: string | null, developer: string | null) =>
+    invoke<void>("filter_set", { platform, developer }),
+  filterShow: () => invoke<void>("filter_show_window"),
+  filterHide: () => invoke<void>("filter_hide_window"),
+  mark: (bundleId: string, status: string, platform: AppPlatform) =>
+    invoke<void>("purchases_mark", { bundleId, status, platform }),
+  unmark: (bundleId: string, platform: AppPlatform) =>
+    invoke<void>("purchases_unmark", { bundleId, platform }),
   queueAdd: (item: {
     bundleId: string;
+    platform: AppPlatform;
     appId: string | null;
     name: string | null;
     developer: string | null;
@@ -68,6 +77,7 @@ export const api = {
       builtinVersion: string;
       activePath: string;
       builtinAvailable: boolean;
+      dataDirectory: string;
     }>("ipatool_info"),
   ipatoolSetFlavor: (flavor: string) => invoke<void>("ipatool_set_flavor", { flavor }),
   ipatoolSetCustomPath: (path: string) => invoke<void>("ipatool_set_custom_path", { path }),

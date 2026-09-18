@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use serde::Serialize;
-use tauri::State;
+use tauri::{AppHandle, State};
 
 use crate::commands::JsMessage;
 use crate::core::appcatalog::search_parser::SearchResult;
@@ -19,6 +19,7 @@ pub struct SearchResultDto {
     pub artwork_url: Option<String>,
     pub price: String,
     pub version: Option<String>,
+    pub platform: String,
     pub purchased: String,
 }
 
@@ -31,14 +32,19 @@ fn to_dto(result: SearchResult) -> SearchResultDto {
         artwork_url: result.artwork_url,
         price: result.price,
         version: result.version,
+        platform: result.platform,
         purchased: result.purchased,
     }
 }
 
 /// 搜索 App Store；超时或空响应返回空列表。
 /// 未登录时不合成已购状态（全部为搜索原始状态）。
-#[tauri::command]
+/// 搜索完成后刷新筛选窗口的开发者选项（失效选择自动回退）。
+/// 同步命令默认在主线程执行（三次 HTTP 请求会冻结 UI/光标），
+/// 标记 `(async)` 使其运行在独立线程。
+#[tauri::command(async)]
 pub fn catalog_search(
+    app: AppHandle,
     state: State<'_, AppState>,
     query: String,
 ) -> Result<Vec<SearchResultDto>, String> {
@@ -60,16 +66,21 @@ pub fn catalog_search(
         )
     };
 
+    // 已购查找键为「平台:bundleId」组合键（同一 bundleId 在两个商店是不同条目）。
+    let lang = crate::i18n::Lang::from_state(&state);
     let purchased: HashMap<String, String> = match &account {
         Some(account) => state
             .db
             .lock()
             .unwrap()
             .as_ref()
-            .ok_or("数据库未初始化")?
+            .ok_or_else(|| lang.message("error-db-not-initialized"))?
             .get_purchased_apps(account)
             .map_err(|e| e.to_string())?
             .into_iter()
+            .map(|(app_id, status, platform)| {
+                (crate::core::platform::purchase_key(&platform, &app_id), status)
+            })
             .collect(),
         None => HashMap::new(),
     };
@@ -81,6 +92,19 @@ pub fn catalog_search(
         &|code| crate::storefront::contains(code),
         &purchased,
     );
+
+    // 开发者选项随搜索结果刷新（推送给筛选窗口与主窗口）。
+    let developers = results
+        .as_ref()
+        .map(|list| {
+            build_developer_options(
+                list.iter()
+                    .filter_map(|item| item.developer.clone())
+                    .collect(),
+            )
+        })
+        .unwrap_or_default();
+    crate::commands::filter::refresh_developer_options(&app, &state, developers);
 
     Ok(results
         .unwrap_or_default()

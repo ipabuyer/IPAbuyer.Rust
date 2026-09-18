@@ -7,7 +7,7 @@
 use std::sync::atomic::AtomicBool;
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::commands::LogEntryDto;
 use crate::core::appcatalog::search_parser::SearchResult;
@@ -20,6 +20,7 @@ use crate::state::AppState;
 #[serde(rename_all = "camelCase")]
 pub struct QueueItemDto {
     pub bundle_id: String,
+    pub platform: String,
     pub app_id: String,
     pub name: String,
     pub developer: String,
@@ -51,6 +52,7 @@ fn status_name(status: crate::core::downloads::DownloadQueueStatus) -> &'static 
 pub(crate) fn item_dto(item: &DownloadQueueItem) -> QueueItemDto {
     QueueItemDto {
         bundle_id: item.bundle_id.clone(),
+        platform: item.platform.clone(),
         app_id: item.app_id.clone(),
         name: item.name.clone(),
         developer: item.developer.clone(),
@@ -67,6 +69,7 @@ pub(crate) fn item_dto(item: &DownloadQueueItem) -> QueueItemDto {
 pub fn queue_add(
     state: State<'_, AppState>,
     bundle_id: String,
+    platform: Option<String>,
     app_id: Option<String>,
     name: Option<String>,
     developer: Option<String>,
@@ -82,6 +85,10 @@ pub fn queue_add(
         artwork_url,
         price,
         version,
+        platform: crate::core::platform::normalize(
+            platform.as_deref().unwrap_or(crate::core::platform::IOS),
+        )
+        .to_string(),
         purchased: String::new(),
     };
     let result = state.queue.queue.add_or_update_from_search_result(
@@ -101,8 +108,9 @@ pub fn queue_add(
 /// 启动队列：参数在启动瞬间读取；已在运行时返回错误。
 #[tauri::command]
 pub fn queue_start(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    let lang = crate::i18n::Lang::from_state(&state);
     if state.queue.queue.is_running() {
-        return Err("队列已在运行".into());
+        return Err(lang.message("error-queue-already-running"));
     }
 
     let queue = std::sync::Arc::clone(&state.queue.queue);
@@ -110,7 +118,8 @@ pub fn queue_start(app: AppHandle, state: State<'_, AppState>) -> Result<(), Str
     cancel.store(false, std::sync::atomic::Ordering::Relaxed);
 
     let exe_path = crate::resolver::resolve_executable_path(&state);
-    let passphrase = crate::state::get_passphrase().ok_or("缺少加密密钥，请先重新登录")?;
+    let passphrase = crate::state::get_passphrase()
+        .ok_or_else(|| lang.message("error-missing-passphrase"))?;
     let (output_directory, is_mock, detailed_log) = {
         let config = state.config.lock().unwrap();
         let mock = state.session.lock().unwrap().is_mock;
@@ -121,7 +130,8 @@ pub fn queue_start(app: AppHandle, state: State<'_, AppState>) -> Result<(), Str
         )
     };
 
-    // 状态/日志经 AppHandle emit，线程内不持有 State<'_>
+    // 状态经 AppHandle emit；日志统一写入全局缓冲，由轮询任务增量推送
+    // （直接 emit 单条会破坏前端按数组解析 log-append 的约定）。
     let app_for_log = app.clone();
     let app_for_change = app.clone();
 
@@ -142,11 +152,14 @@ pub fn queue_start(app: AppHandle, state: State<'_, AppState>) -> Result<(), Str
                 on_chunk,
                 cancel,
                 detailed_sink,
+                &item.platform,
             )
         };
 
         let mut on_log = |log: crate::core::purchases::sync_service::LogMessage| {
-            app_for_log.emit("log-append", LogEntryDto::from(&log)).ok();
+            if let Some(state) = app_for_log.try_state::<AppState>() {
+                state.log_buffer.push((&log).into());
+            }
         };
         let mut on_change = || {
             app_for_change.emit("queue-changed", ()).ok();
@@ -155,7 +168,6 @@ pub fn queue_start(app: AppHandle, state: State<'_, AppState>) -> Result<(), Str
         queue.start_queue(StartQueueParams {
             output_directory: &output_directory,
             is_mock,
-            detailed_log,
             cancel: &cancel,
             runner: &runner,
             on_log: &mut on_log,
@@ -201,5 +213,5 @@ pub fn logs_clear(state: State<'_, AppState>) {
 /// 全量日志快照（初始化日志面板用）。
 #[tauri::command]
 pub fn logs_snapshot(state: State<'_, AppState>) -> Vec<LogEntryDto> {
-    state.log_buffer.snapshot_from(0)
+    state.log_buffer.snapshot_all()
 }

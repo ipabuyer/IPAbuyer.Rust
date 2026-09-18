@@ -98,6 +98,7 @@ pub struct AppState {
     pub queue: QueueState,
     pub sync: SyncState,
     pub log_buffer: crate::commands::LogBuffer,
+    pub filter: Mutex<crate::commands::filter::FilterSelection>,
     config_path: PathBuf,
     db_path: PathBuf,
 }
@@ -144,8 +145,10 @@ impl AppState {
             .unwrap_or_default();
 
         let db_path = data_dir.join("PurchasedAppDb.db");
-        let db = PurchasedAppsDb::open(&db_path)
-            .map_err(|e| format!("打开已购数据库失败: {e}"))?;
+        let db = PurchasedAppsDb::open(&db_path).map_err(|e| {
+            let lang = crate::i18n::Lang::from_config(&config.display_language);
+            lang.message_with("error-open-db-failed", &[("error", &e.to_string())])
+        })?;
 
         Ok(Self {
             config: Mutex::new(config),
@@ -154,6 +157,7 @@ impl AppState {
             queue: QueueState::default(),
             sync: SyncState::default(),
             log_buffer: crate::commands::LogBuffer::new(),
+            filter: Mutex::new(crate::commands::filter::FilterSelection::default()),
             config_path,
             db_path: db_path.clone(),
         })

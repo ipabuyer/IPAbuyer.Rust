@@ -32,7 +32,9 @@ pub fn normalize_country_code(
 }
 
 /// 搜索目录：请求 iTunes Search 并解析为带购买状态的结果列表。
-/// 超时或响应为空返回 `None`。
+/// 同时检索 iOS（`entity=software`）、iPad（`entity=iPadSoftware`）与
+/// Mac（`entity=macSoftware`）三个 App Store，按 iOS、iPad、Mac 排序；
+/// 全部超时/为空时返回 `None`。
 pub fn search_catalog(
     app_name: &str,
     limit: i64,
@@ -41,7 +43,43 @@ pub fn search_catalog(
     purchased_apps: &HashMap<String, String>,
 ) -> Option<Vec<SearchResult>> {
     let country = normalize_country_code(Some(country_code), is_valid_country);
-    let response = search_client::search(app_name, limit, &country);
+    let requests = [
+        (search_client::ENTITY_SOFTWARE, crate::core::platform::IOS),
+        (search_client::ENTITY_IPAD_SOFTWARE, crate::core::platform::IPAD),
+        (search_client::ENTITY_MAC_SOFTWARE, crate::core::platform::MACOS),
+    ];
+    let mut rounds: Vec<Option<Vec<SearchResult>>> = Vec::new();
+    for (entity, platform) in requests {
+        rounds.push(search_one(
+            app_name,
+            limit,
+            &country,
+            entity,
+            platform,
+            purchased_apps,
+        ));
+    }
+
+    if rounds.iter().all(|round| round.is_none()) {
+        return None;
+    }
+    let mut merged: Vec<SearchResult> = Vec::new();
+    for round in rounds {
+        merged.extend(round.unwrap_or_default());
+    }
+    Some(merged)
+}
+
+/// 检索单一实体并解析为带购买状态的结果；超时或响应为空返回 `None`。
+fn search_one(
+    app_name: &str,
+    limit: i64,
+    country_code: &str,
+    entity: &str,
+    platform: &str,
+    purchased_apps: &HashMap<String, String>,
+) -> Option<Vec<SearchResult>> {
+    let response = search_client::search(app_name, limit, country_code, entity);
     if response.timed_out {
         return None;
     }
@@ -51,7 +89,7 @@ pub fn search_catalog(
         return None;
     }
 
-    search_parser::parse(&payload, purchased_apps)
+    search_parser::parse(&payload, platform, purchased_apps)
 }
 
 #[cfg(test)]

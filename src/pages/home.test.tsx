@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18next from "i18next";
 import { initReactI18next } from "react-i18next";
 import { fireEvent, render, screen } from "@testing-library/react";
+import { toast } from "sonner";
 import zhHans from "@/locales/zh-Hans.json";
 
 const purchaseMock = vi.fn();
@@ -10,6 +11,7 @@ const queueStartMock = vi.fn();
 const queueCancelMock = vi.fn();
 const markMock = vi.fn();
 const unmarkMock = vi.fn();
+const filterShowMock = vi.fn();
 const getSettingsMock = vi.fn(async (..._args: unknown[]) => ({
   countryCode: "cn",
   downloadDirectory: null,
@@ -25,6 +27,7 @@ const searchMock = vi.fn(async () => []);
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(async () => null),
 }));
+vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(async () => vi.fn()) }));
 vi.mock("@tauri-apps/plugin-opener", () => ({
   openUrl: vi.fn(async () => {}),
 }));
@@ -45,6 +48,10 @@ vi.mock("@/lib/api", () => ({
     logsSnapshot: vi.fn(async () => []),
     logsClear: vi.fn(async () => {}),
     syncLastTime: vi.fn(async () => null),
+    filterGet: vi.fn(async () => ({ platform: "all", developer: "all", developers: [] })),
+    filterSet: vi.fn(async () => {}),
+    filterShow: (...a: unknown[]) => filterShowMock(...(a as unknown[])),
+    filterHide: vi.fn(async () => {}),
   },
 }));
 
@@ -53,6 +60,7 @@ import { useLogs } from "@/stores/logs";
 import { useQueue } from "@/stores/queue";
 import { useSearch } from "@/stores/search";
 import { useSession } from "@/stores/session";
+import { useFilter } from "@/stores/filter";
 
 const result = (bundleId: string, purchased: string, developer: string) => ({
   bundleId,
@@ -62,6 +70,7 @@ const result = (bundleId: string, purchased: string, developer: string) => ({
   artworkUrl: null,
   price: "free",
   version: "1.0",
+  platform: "ios" as const,
   purchased,
 });
 
@@ -72,6 +81,10 @@ beforeEach(async () => {
   markMock.mockReset().mockResolvedValue(undefined);
   unmarkMock.mockReset().mockResolvedValue(undefined);
   getSettingsMock.mockClear();
+  vi.mocked(toast.success).mockClear();
+  vi.mocked(toast.info).mockClear();
+  vi.mocked(toast.warning).mockClear();
+  vi.mocked(toast.error).mockClear();
 
   useSession.getState().setSession(true, "user@icloud.com", false);
   useSearch.setState({
@@ -85,6 +98,12 @@ beforeEach(async () => {
   });
   useQueue.setState({ running: false, items: [], listening: false });
   useLogs.setState({ entries: [], listening: false });
+  useFilter.setState({
+    platform: "all",
+    developer: "all",
+    developers: [],
+    listening: false,
+  });
 
   if (!i18next.isInitialized) {
     await i18next.use(initReactI18next).init({
@@ -118,7 +137,7 @@ describe("HomePage", () => {
     purchaseMock.mockResolvedValue({ bundleId: "com.free", outcome: "Purchased", detail: null });
     fireEvent.click(screen.getByRole("button", { name: "购买" }));
     await vi.waitFor(() =>
-      expect(purchaseMock).toHaveBeenCalledWith("com.free", "free", "not_purchased"),
+      expect(purchaseMock).toHaveBeenCalledWith("com.free", "free", "not_purchased", "ios"),
     );
   });
 
@@ -147,6 +166,22 @@ describe("HomePage", () => {
     );
   });
 
+  it("purchase toast interpolates the app name instead of {{0}}", async () => {
+    purchaseMock.mockResolvedValue({ bundleId: "com.free", outcome: "Purchased", detail: null });
+    fireEvent.click(screen.getByRole("button", { name: "购买" }));
+    await vi.waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("购买成功: 应用-com.free"),
+    );
+  });
+
+  it("purchase failure toast fills name and reason", async () => {
+    purchaseMock.mockResolvedValue({ bundleId: "com.free", outcome: "Failed", detail: "boom" });
+    fireEvent.click(screen.getByRole("button", { name: "购买" }));
+    await vi.waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("购买失败: 应用-com.free - boom"),
+    );
+  });
+
   it("three-dot menu marks a not-purchased card as purchased", async () => {
     markMock.mockResolvedValue(undefined);
     const freeCard = screen.getByText("应用-com.free").closest("[data-slot=card]")!;
@@ -159,7 +194,9 @@ describe("HomePage", () => {
 
     const item = await screen.findByText("标记为已购买");
     fireEvent.click(item);
-    await vi.waitFor(() => expect(markMock).toHaveBeenCalledWith("com.free", "purchased"));
+    await vi.waitFor(() =>
+      expect(markMock).toHaveBeenCalledWith("com.free", "purchased", "ios"),
+    );
   });
 
   it("right-click on a card opens the same menu", async () => {
@@ -169,6 +206,51 @@ describe("HomePage", () => {
 
     const item = await screen.findByText("标记为已购买");
     fireEvent.click(item);
-    await vi.waitFor(() => expect(markMock).toHaveBeenCalledWith("com.free", "purchased"));
+    await vi.waitFor(() => expect(markMock).toHaveBeenCalledWith("com.free", "purchased", "ios"));
+  });
+
+  it("macOS and iPad cards show platform badges", async () => {
+    const macResult = {
+      ...result("com.mac", "not_purchased", "Apple"),
+      platform: "macos" as const,
+    };
+    const ipadResult = {
+      ...result("com.ipad", "not_purchased", "Apple"),
+      platform: "ipad" as const,
+    };
+    useSearch.setState({
+      query: "测试",
+      searching: false,
+      lastSearchEmpty: false,
+      results: [...useSearch.getState().results, macResult, ipadResult],
+    });
+
+    expect(await screen.findByText("Mac")).toBeTruthy();
+    expect(screen.getByText("iPad")).toBeTruthy();
+  });
+
+  it("filter button opens the independent filter window", async () => {
+    fireEvent.click(screen.getByRole("button", { name: "筛选" }));
+    await vi.waitFor(() => expect(filterShowMock).toHaveBeenCalled());
+  });
+
+  it("filter store drives the platform filter", async () => {
+    const macResult = {
+      ...result("com.mac", "not_purchased", "Apple"),
+      platform: "macos" as const,
+    };
+    useSearch.setState({
+      query: "测试",
+      searching: false,
+      lastSearchEmpty: false,
+      results: [...useSearch.getState().results, macResult],
+    });
+    const { useFilter } = await import("@/stores/filter");
+    useFilter.setState({ platform: "macos" });
+
+    expect(await screen.findByText("应用-com.mac")).toBeTruthy();
+    expect(screen.queryByText("应用-com.free")).toBeNull();
+    expect(screen.queryByText("应用-com.purchased")).toBeNull();
+    useFilter.setState({ platform: "all" });
   });
 });

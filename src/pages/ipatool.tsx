@@ -36,18 +36,23 @@ interface IpatoolInfo {
   builtinVersion: string;
   activePath: string;
   builtinAvailable: boolean;
+  dataDirectory: string;
 }
 
 export function IpatoolPage() {
   const { t } = useTranslation();
   const [info, setInfo] = useState<IpatoolInfo | null>(null);
   const [detailedLog, setDetailedLog] = useState(false);
+  const [downloadDir, setDownloadDir] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState<null | "export" | "clear">(null);
 
   useEffect(() => {
     void reload();
-    void api.getSettings().then((c) => setDetailedLog(c.detailedIpatoolLog));
+    void api.getSettings().then(async (c) => {
+      setDetailedLog(c.detailedIpatoolLog);
+      setDownloadDir(c.downloadDirectory ?? (await api.defaultDownloadDirectory()));
+    });
   }, []);
 
   async function reload() {
@@ -60,7 +65,7 @@ export function IpatoolPage() {
       await action();
       if (reloadAfter) await reload();
     } catch (error) {
-      toast.error(t("IpatoolPage/Custom/SaveFailMessage"), { description: String(error) });
+      toast.error(t("IpatoolPage/Custom/SaveFailMessage", { 0: String(error) }));
     } finally {
       setBusy(false);
     }
@@ -79,9 +84,14 @@ export function IpatoolPage() {
     setBusy(true);
     try {
       const target = await api.ipatoolExport();
-      toast.success(t("IpatoolPage/Export/SuccessMessage"), { description: target });
+      toast.success(
+        t("IpatoolPage/Export/SuccessMessage", {
+          0: t("IpatoolPage/Release/DisplayName"),
+          1: target,
+        }),
+      );
     } catch (error) {
-      toast.error(t("IpatoolPage/Export/FailMessage"), { description: String(error) });
+      toast.error(t("IpatoolPage/Export/FailMessage", { 0: String(error) }));
     } finally {
       setBusy(false);
       setConfirm(null);
@@ -94,7 +104,7 @@ export function IpatoolPage() {
       await api.ipatoolClearData();
       toast.success(t("IpatoolPage/Data/ClearSuccessMessage"));
     } catch (error) {
-      toast.error(t("IpatoolPage/Data/ClearFailMessage"), { description: String(error) });
+      toast.error(t("IpatoolPage/Data/ClearFailMessage", { 0: String(error) }));
     } finally {
       setBusy(false);
       setConfirm(null);
@@ -250,7 +260,12 @@ export function IpatoolPage() {
           <DialogHeader>
             <DialogTitle>{t("IpatoolPage/Export/ConfirmTitle")}</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">{t("IpatoolPage/Export/ConfirmMessage")}</p>
+          <p className="text-sm text-muted-foreground">
+            {t("IpatoolPage/Export/ConfirmMessage", {
+              0: t("IpatoolPage/Release/DisplayName"),
+              1: downloadDir,
+            })}
+          </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirm(null)}>
               {t("Settings/CountryCode/CancelButton")}
@@ -271,7 +286,12 @@ export function IpatoolPage() {
               {t("IpatoolPage/Card/ClearIpatoolData.Header")}
             </DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">{t("IpatoolPage/Data/ClearConfirmMessage")}</p>
+          <p className="text-sm text-muted-foreground">
+            {t("IpatoolPage/Data/ClearConfirmMessage", {
+              0: "\n",
+              1: info?.dataDirectory ?? "~/.ipatool",
+            })}
+          </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirm(null)}>
               {t("Settings/CountryCode/CancelButton")}

@@ -55,20 +55,23 @@ impl LogMessage {
 
 /// 同步持久化接口（阶段 3 由 rusqlite 落地）。
 pub trait PurchaseStore {
-    /// 批量将 App 标记为已购买（单事务）。
-    fn bulk_mark_purchased(&mut self, bundle_ids: &[String], account: &str);
+    /// 批量将 App 标记为已购买（单事务）；记录归属指定平台。
+    fn bulk_mark_purchased(&mut self, bundle_ids: &[String], account: &str, platform: &str);
     /// 记录一次同步尝试；失败时保留原成功时间。
     fn record_sync_attempt(&mut self, account: &str, succeeded: bool);
 }
 
 /// list-purchases 页拉取接口（由 `IpatoolClient` 实现）。
+/// `platform` 为 `None` 时使用 ipatool 缺省平台（不传参，兼容 2.5.0）。
 pub trait ListPurchasesFetcher {
+    #[allow(clippy::too_many_arguments)]
     fn fetch(
         &self,
         max_results: i64,
         page: i64,
         passphrase: Option<&str>,
         cancel: &AtomicBool,
+        platform: Option<&str>,
         on_log: Option<&mut dyn FnMut(LogMessage)>,
     ) -> Result<IpatoolResult, ClientError>;
 }
@@ -80,9 +83,10 @@ impl ListPurchasesFetcher for IpatoolClient {
         page: i64,
         passphrase: Option<&str>,
         cancel: &AtomicBool,
+        platform: Option<&str>,
         on_log: Option<&mut dyn FnMut(LogMessage)>,
     ) -> Result<IpatoolResult, ClientError> {
-        IpatoolClient::list_purchases(self, max_results, page, passphrase, cancel, on_log)
+        IpatoolClient::list_purchases(self, max_results, page, passphrase, cancel, on_log, platform)
     }
 }
 
@@ -168,19 +172,111 @@ impl PurchaseSyncService {
         on_progress: &mut dyn FnMut(i64, i64),
         on_log: &mut dyn FnMut(LogMessage),
     ) -> SyncOutcome {
+        // 内部标记：全部轮次走完（数值以累计偏移为准，见函数末尾）。
+        const COMPLETED: SyncOutcome = SyncOutcome::Completed { synced: 0, total: 0 };
+
         on_log(LogMessage::key(
             LogLevel::Info,
             "PurchaseSync/Log/Start",
             vec![account.to_string()],
         ));
 
+        // iOS 轮不传 --platform（ipatool 缺省平台，兼容自定义 2.5.0）且失败即终止；
+        // iPad/Mac 轮失败仅记录并跳过——自定义 ipatool 2.5.0 没有 --platform 参数。
+        let platforms = [
+            None,
+            Some(crate::core::platform::IPAD),
+            Some(crate::core::platform::MACOS),
+        ];
+        let mut synced_total = 0_i64;
+        let mut total_total = 0_i64;
+        let mut outcome = COMPLETED;
+
+        for platform in platforms {
+            match self.run_platform(
+                account,
+                passphrase,
+                fetcher,
+                store,
+                cancel,
+                detailed_log,
+                platform,
+                &mut synced_total,
+                &mut total_total,
+                on_progress,
+                on_log,
+            ) {
+                SyncOutcome::Completed { .. } => {}
+                SyncOutcome::Canceled => {
+                    outcome = SyncOutcome::Canceled;
+                    break;
+                }
+                SyncOutcome::Failed { message } => {
+                    if platform.is_none() {
+                        outcome = SyncOutcome::Failed { message };
+                        break;
+                    }
+                    on_log(LogMessage::key(
+                        LogLevel::Tip,
+                        "PurchaseSync/Log/PlatformRoundFailed",
+                        vec![
+                            crate::core::platform::display_name(
+                                platform.unwrap_or(crate::core::platform::IOS),
+                            )
+                            .to_string(),
+                            message,
+                        ],
+                    ));
+                }
+                other => {
+                    outcome = other;
+                    break;
+                }
+            }
+        }
+
+        let succeeded = matches!(outcome, SyncOutcome::Completed { .. });
+        store.record_sync_attempt(account, succeeded);
+        match outcome {
+            SyncOutcome::Completed { .. } => {
+                on_log(LogMessage::key(
+                    LogLevel::Success,
+                    "PurchaseSync/Log/Completed",
+                    vec![synced_total.to_string(), total_total.to_string()],
+                ));
+                SyncOutcome::Completed {
+                    synced: synced_total,
+                    total: total_total,
+                }
+            }
+            other => other,
+        }
+    }
+
+    /// 单平台分页拉取；进度在全局偏移（已完成平台）之上累加。
+    /// 尝试记录（成功/失败）由 [`Self::run`] 统一写一次。
+    #[allow(clippy::too_many_arguments)]
+    fn run_platform(
+        &self,
+        account: &str,
+        passphrase: Option<&str>,
+        fetcher: &dyn ListPurchasesFetcher,
+        store: &mut dyn PurchaseStore,
+        cancel: &AtomicBool,
+        detailed_log: bool,
+        platform: Option<&'static str>,
+        synced_offset: &mut i64,
+        total_offset: &mut i64,
+        on_progress: &mut dyn FnMut(i64, i64),
+        on_log: &mut dyn FnMut(LogMessage),
+    ) -> SyncOutcome {
+        let store_platform = platform.unwrap_or(crate::core::platform::IOS);
         let mut page = 1_i64;
         let mut synced = 0_i64;
         let mut total = -1_i64;
 
         loop {
             if cancel.load(Ordering::Relaxed) {
-                store.record_sync_attempt(account, false);
                 on_log(LogMessage::key(
                     LogLevel::Tip,
                     "PurchaseSync/Log/Canceled",
@@ -196,12 +292,11 @@ impl PurchaseSyncService {
                 } else {
                     None
                 };
-                fetcher.fetch(PAGE_SIZE, page, passphrase, cancel, sink)
+                fetcher.fetch(PAGE_SIZE, page, passphrase, cancel, platform, sink)
             };
             let result = match fetch_result {
                 Ok(result) => result,
                 Err(ClientError::Canceled) => {
-                    store.record_sync_attempt(account, false);
                     on_log(LogMessage::key(
                         LogLevel::Tip,
                         "PurchaseSync/Log/Canceled",
@@ -214,7 +309,6 @@ impl PurchaseSyncService {
             // 超时没有可解析输出：失败消息退化为安全命令标签。
             if result.timed_out {
                 let message = FALLBACK_COMMAND_LABEL.to_string();
-                store.record_sync_attempt(account, false);
                 on_log(LogMessage::key(
                     LogLevel::Error,
                     "PurchaseSync/Log/Failed",
@@ -229,7 +323,6 @@ impl PurchaseSyncService {
                     .error_message
                     .filter(|message| !message.trim().is_empty())
                     .unwrap_or_else(|| FALLBACK_COMMAND_LABEL.to_string());
-                store.record_sync_attempt(account, false);
                 on_log(LogMessage::key(
                     LogLevel::Error,
                     "PurchaseSync/Log/Failed",
@@ -243,13 +336,19 @@ impl PurchaseSyncService {
             }
 
             if !parsed.bundle_ids.is_empty() {
-                store.bulk_mark_purchased(&parsed.bundle_ids, account);
+                store.bulk_mark_purchased(&parsed.bundle_ids, account, store_platform);
                 synced += parsed.bundle_ids.len() as i64;
-                on_progress(synced, total.max(synced));
+                on_progress(
+                    *synced_offset + synced,
+                    *total_offset + total.max(synced),
+                );
                 on_log(LogMessage::key(
                     LogLevel::Info,
                     "PurchaseSync/Log/Progress",
-                    vec![synced.to_string(), total.max(synced).to_string()],
+                    vec![
+                        (*synced_offset + synced).to_string(),
+                        (*total_offset + total.max(synced)).to_string(),
+                    ],
                 ));
             }
 
@@ -260,12 +359,8 @@ impl PurchaseSyncService {
             page += 1;
         }
 
-        store.record_sync_attempt(account, true);
-        on_log(LogMessage::key(
-            LogLevel::Success,
-            "PurchaseSync/Log/Completed",
-            vec![synced.to_string(), total.max(0).to_string()],
-        ));
+        *synced_offset += synced;
+        *total_offset += total.max(0);
         SyncOutcome::Completed {
             synced,
             total: total.max(0),
@@ -281,18 +376,19 @@ mod tests {
     use super::*;
     use crate::core::ipatool::response_parser::NormalizedText;
     use std::sync::Arc;
-    use std::sync::atomic::AtomicUsize;
     use std::sync::mpsc;
 
     #[derive(Default)]
     struct FakeStore {
-        bulk_calls: Vec<Vec<String>>,
+        /// (平台, bundle_ids)
+        bulk_calls: Vec<(String, Vec<String>)>,
         attempts: Vec<(String, bool)>,
     }
 
     impl PurchaseStore for FakeStore {
-        fn bulk_mark_purchased(&mut self, bundle_ids: &[String], _account: &str) {
-            self.bulk_calls.push(bundle_ids.to_vec());
+        fn bulk_mark_purchased(&mut self, bundle_ids: &[String], _account: &str, platform: &str) {
+            self.bulk_calls
+                .push((platform.to_string(), bundle_ids.to_vec()));
         }
 
         fn record_sync_attempt(&mut self, account: &str, succeeded: bool) {
@@ -300,17 +396,14 @@ mod tests {
         }
     }
 
+    /// 平台感知的假拉取器：按平台独立分页；未配置的平台返回空页（轮次直接完成）。
     struct FakeFetcher {
-        pages: Vec<IpatoolResult>,
-        calls: AtomicUsize,
+        pages_by_platform: Vec<(Option<&'static str>, Vec<IpatoolResult>)>,
     }
 
     impl FakeFetcher {
-        fn new(pages: Vec<IpatoolResult>) -> Self {
-            Self {
-                pages,
-                calls: AtomicUsize::new(0),
-            }
+        fn new(pages_by_platform: Vec<(Option<&'static str>, Vec<IpatoolResult>)>) -> Self {
+            Self { pages_by_platform }
         }
 
         fn page(output: &str) -> IpatoolResult {
@@ -319,6 +412,10 @@ mod tests {
                 NormalizedText::Raw(String::new()),
                 0,
             )
+        }
+
+        fn empty_page() -> IpatoolResult {
+            Self::page(r#"{"level":"info","count":0,"totalCount":0,"apps":[]}"#)
         }
     }
 
@@ -329,11 +426,19 @@ mod tests {
             page: i64,
             _passphrase: Option<&str>,
             _cancel: &AtomicBool,
+            platform: Option<&str>,
             _on_log: Option<&mut dyn FnMut(LogMessage)>,
         ) -> Result<IpatoolResult, ClientError> {
-            let index = self.calls.fetch_add(1, Ordering::Relaxed);
-            let _ = page;
-            self.pages.get(index).cloned().ok_or(ClientError::Canceled)
+            let pages = self
+                .pages_by_platform
+                .iter()
+                .find(|(entry_platform, _)| *entry_platform == platform)
+                .map(|(_, pages)| pages);
+            let Some(pages) = pages else {
+                return Ok(Self::empty_page());
+            };
+            let index = (page - 1).max(0) as usize;
+            Ok(pages.get(index).cloned().unwrap_or_else(|| Self::empty_page()))
         }
     }
 
@@ -351,10 +456,10 @@ mod tests {
     fn sync_pages_until_total_reached_and_records_success() {
         let service = PurchaseSyncService::new();
         let mut store = FakeStore::default();
-        let fetcher = FakeFetcher::new(vec![
-            success_page(2, 3, "com.a"),
-            success_page(1, 3, "com.b"),
-        ]);
+        let fetcher = FakeFetcher::new(vec![(
+            None,
+            vec![success_page(2, 3, "com.a"), success_page(1, 3, "com.b")],
+        )]);
         let cancel = AtomicBool::new(false);
         let mut progress_events: Vec<(i64, i64)> = Vec::new();
         let mut logs: Vec<LogMessage> = Vec::new();
@@ -422,8 +527,11 @@ mod tests {
     fn sync_error_page_records_failure_with_message() {
         let service = PurchaseSyncService::new();
         let mut store = FakeStore::default();
-        let fetcher = FakeFetcher::new(vec![FakeFetcher::page(
-            r#"{"level":"error","error":"max results must not exceed 100","success":false}"#,
+        let fetcher = FakeFetcher::new(vec![(
+            None,
+            vec![FakeFetcher::page(
+                r#"{"level":"error","error":"max results must not exceed 100","success":false}"#,
+            )],
         )]);
         let cancel = AtomicBool::new(false);
         let mut ignored = |_: i64, _: i64| {};
@@ -475,6 +583,111 @@ mod tests {
     }
 
     #[test]
+    fn sync_covers_all_platforms_and_tags_records() {
+        let service = PurchaseSyncService::new();
+        let mut store = FakeStore::default();
+        let fetcher = FakeFetcher::new(vec![
+            (None, vec![success_page(1, 1, "com.ios")]),
+            (
+                Some(crate::core::platform::IPAD),
+                vec![success_page(1, 1, "com.ipad")],
+            ),
+            (
+                Some(crate::core::platform::MACOS),
+                vec![success_page(2, 2, "com.mac")],
+            ),
+        ]);
+        let cancel = AtomicBool::new(false);
+        let mut progress_events: Vec<(i64, i64)> = Vec::new();
+        let mut logs: Vec<LogMessage> = Vec::new();
+
+        let outcome = service.sync(
+            "user",
+            None,
+            &fetcher,
+            &mut store,
+            &cancel,
+            false,
+            &mut |synced, total| progress_events.push((synced, total)),
+            &mut |message| logs.push(message),
+        );
+
+        assert_eq!(
+            outcome,
+            SyncOutcome::Completed {
+                synced: 4,
+                total: 4
+            }
+        );
+        // 三轮各写一次，平台标记分别正确。
+        assert_eq!(
+            store.bulk_calls,
+            vec![
+                ("ios".to_string(), vec!["com.ios.0".to_string()]),
+                ("ipad".to_string(), vec!["com.ipad.0".to_string()]),
+                (
+                    "macos".to_string(),
+                    vec!["com.mac.0".to_string(), "com.mac.1".to_string()]
+                ),
+            ]
+        );
+        assert_eq!(store.attempts, vec![("user".to_string(), true)]);
+        // 每轮进度在已完成平台的偏移之上累加。
+        assert_eq!(progress_events, vec![(1, 1), (2, 2), (4, 4)]);
+    }
+
+    #[test]
+    fn non_ios_round_failures_are_tolerated_and_logged() {
+        let service = PurchaseSyncService::new();
+        let mut store = FakeStore::default();
+        let error_page = || {
+            FakeFetcher::page(r#"{"level":"error","error":"unknown flag: --platform","success":false}"#)
+        };
+        let fetcher = FakeFetcher::new(vec![
+            (None, vec![success_page(1, 1, "com.a")]),
+            (Some(crate::core::platform::IPAD), vec![error_page()]),
+            (Some(crate::core::platform::MACOS), vec![error_page()]),
+        ]);
+        let cancel = AtomicBool::new(false);
+        let mut logs: Vec<LogMessage> = Vec::new();
+        let mut ignored = |_: i64, _: i64| {};
+
+        let outcome = service.sync(
+            "user",
+            None,
+            &fetcher,
+            &mut store,
+            &cancel,
+            false,
+            &mut ignored,
+            &mut |message| logs.push(message),
+        );
+
+        // 非 iOS 轮失败不拖垮整次同步（兼容自定义 ipatool 2.5.0）。
+        assert_eq!(
+            outcome,
+            SyncOutcome::Completed {
+                synced: 1,
+                total: 1
+            }
+        );
+        assert_eq!(store.attempts, vec![("user".to_string(), true)]);
+        let skip_logs: Vec<&LogMessage> = logs
+            .iter()
+            .filter(|log| log.message.key() == "PurchaseSync/Log/PlatformRoundFailed")
+            .collect();
+        assert_eq!(skip_logs.len(), 2);
+        assert!(logs.iter().any(|log| log.message
+            == NormalizedText::Keyed {
+                key: "PurchaseSync/Log/PlatformRoundFailed",
+                args: vec![
+                    "iPad App Store".to_string(),
+                    "unknown flag: --platform".to_string()
+                ],
+            }));
+    }
+
+    #[test]
     fn sync_is_single_flight() {
         let service = Arc::new(PurchaseSyncService::new());
         let cancel = Arc::new(AtomicBool::new(false));
@@ -493,6 +706,7 @@ mod tests {
                 _page: i64,
                 _passphrase: Option<&str>,
                 _cancel: &AtomicBool,
+                _platform: Option<&str>,
                 _on_log: Option<&mut dyn FnMut(LogMessage)>,
             ) -> Result<IpatoolResult, ClientError> {
                 self.started.send(()).unwrap();

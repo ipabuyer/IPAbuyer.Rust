@@ -20,6 +20,7 @@ import { useQueue } from "./queue";
 const items: QueueItem[] = [
   {
     bundleId: "com.a",
+    platform: "ios",
     appId: "1",
     name: "A",
     developer: "dev",

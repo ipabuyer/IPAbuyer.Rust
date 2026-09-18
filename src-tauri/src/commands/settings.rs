@@ -1,7 +1,7 @@
 //! 设置命令（对齐 C# ConfigurationStore / ApplicationSettings）。
 
 use serde::Serialize;
-use tauri::State;
+use tauri::{Emitter, State};
 
 use crate::state::{AppState, Config, DISPLAY_LANGUAGE_AUTO};
 use crate::storefront;
@@ -51,7 +51,11 @@ pub fn settings_default_download_directory() -> String {
 fn set_country_code_inner(state: &AppState, code: String) -> Result<ConfigDto, String> {
     let normalized = code.trim().to_lowercase();
     if normalized.is_empty() || !storefront::contains(&normalized) {
-        return Err(format!("无效的国家/地区代码: {code}"));
+        return Err(format!(
+            "{}",
+            crate::i18n::Lang::from_state(state)
+                .message_with("error-invalid-country-code", &[("value", code.as_str())]),
+        ));
     }
     state.update_config(|c| c.country_code = normalized).map(ConfigDto::from)
 }
@@ -64,10 +68,13 @@ pub fn settings_set_country_code(state: State<'_, AppState>, code: String) -> Re
 fn set_download_directory_inner(state: &AppState, path: String) -> Result<ConfigDto, String> {
     let trimmed = path.trim().to_string();
     if trimmed.is_empty() {
-        return Err("下载目录不能为空".into());
+        return Err(crate::i18n::Lang::from_state(state).message("error-download-dir-empty"));
     }
     if !std::path::Path::new(&trimmed).is_dir() {
-        return Err(format!("目录不存在: {trimmed}"));
+        return Err(
+            crate::i18n::Lang::from_state(state)
+                .message_with("error-directory-not-found", &[("path", trimmed.as_str())]),
+        );
     }
     state.update_config(|c| c.download_directory = Some(trimmed)).map(ConfigDto::from)
 }
@@ -88,18 +95,25 @@ pub fn settings_reset_download_directory(state: State<'_, AppState>) -> Result<C
 fn set_display_language_inner(state: &AppState, language: String) -> Result<ConfigDto, String> {
     let value = language.trim().to_string();
     if value != DISPLAY_LANGUAGE_AUTO && value != "zh-Hans" && value != "en-US" {
-        return Err(format!("无效的显示语言: {language}"));
+        return Err(
+            crate::i18n::Lang::from_state(state)
+                .message_with("error-invalid-display-language", &[("value", language.as_str())]),
+        );
     }
     state.update_config(|c| c.display_language = value).map(ConfigDto::from)
 }
 
 /// 显示语言：auto / zh-Hans / en-US。
+/// 保存后广播 `language-changed`，所有窗口（主窗口/日志/筛选）同步切换。
 #[tauri::command]
 pub fn settings_set_display_language(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     language: String,
 ) -> Result<ConfigDto, String> {
-    set_display_language_inner(&state, language)
+    let config = set_display_language_inner(&state, language)?;
+    let _ = app.emit("language-changed", config.display_language.clone());
+    Ok(config)
 }
 
 #[tauri::command]

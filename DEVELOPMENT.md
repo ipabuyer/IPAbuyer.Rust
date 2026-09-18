@@ -28,9 +28,9 @@
 
 ## 1. 项目概述
 
-IPAbuyer 是一款发布至 Microsoft Store 的桌面应用，帮助用户浏览、购买（仅限免费 App）并下载 App Store 中的 App。本仓库为 Tauri 2 重写版，用于替代 WinUI 3 版。
+IPAbuyer 是一款发布至 Microsoft Store 的桌面应用，帮助用户浏览、购买（仅限免费 App）并下载 App Store 中的 App（覆盖 iOS 与 Mac App Store）。本仓库为 Tauri 2 重写版，用于替代 WinUI 3 版。
 
-- 底层工具：[majd/ipatool](https://github.com/majd/ipatool) 2.5.0，所有认证、购买、下载经其完成
+- 底层工具：[majd/ipatool](https://github.com/majd/ipatool) 2.6.0，所有认证、购买、下载经其完成
 - 代码仓库：<https://github.com/ipabuyer/IPAbuyer.Rust>
 - 开发者网站：<https://ipa.blazesnow.com>
 - 商店身份：`IPAbuyer.IPAbuyer` / `CN=68F867E4-B304-4B5D-9818-31B1910E0771`（与 WinUI3 版一致，PFN `IPAbuyer.IPAbuyer_kr1hdvrv6tpd0`）
@@ -121,7 +121,7 @@ node scripts/eval-webview.mjs 9224 "window.__TAURI_INTERNALS__.invoke('settings_
 ## 5. 发布与版本管理
 
 1. 最终发布至 Microsoft Store；上传 `.msixbundle` 无需本地签名（商店自动重签）。
-2. 版本号采用 `年.月.日.0` CalVer，维护于 `src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml`；MSIX 版本由 `scripts/make-msix.ps1 -Version x.y.z.w` 指定，**必须严格大于商店已发布版本**。
+2. 版本号采用 `年.月.日(.0)` CalVer，唯一来源为 `package.json` 的 version 字段；`version.ps1` 将其同步到 `src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json` 与 `Cargo.lock`（`-Check` 仅检查）；MSIX 版本由 `scripts/make-msix.ps1 -Version x.y.z.w` 指定，**必须严格大于商店已发布版本**（发布 tag 要求四段式，见 `tag.ps1`）。
 3. bundle 版本经 `makeappx bundle /bv` 显式指定为与包内版本一致——缺省时 makeappx 会用当前 UTC 时间生成版本（表现为 `2026.914.940.0` 之类的乱象）。
 4. 打包流程：`pnpm build` → `pnpm msix`；产物 `msix/out/`（已 gitignore）。包内容：`IPAbuyer.exe`（前端已内嵌，无外部资源文件）、`ipatool.exe`、清单与商店图标。
 5. 前端不生成 `resources.pri`，清单直接引用 `Assets/` 原始文件名（scale-100）。
@@ -130,10 +130,10 @@ node scripts/eval-webview.mjs 9224 "window.__TAURI_INTERNALS__.invoke('settings_
 
 ## 6. 内置 ipatool 可执行文件
 
-1. 来源：上游正式版 `2.5.0`，`scripts/fetch-ipatool.ps1` 下载 `amd64`/`arm64` tar.gz、校验 SHA-256 与 PE 头，写入 `src-tauri/binaries/ipatool-<target-triple>.exe`（Tauri sidecar 命名，gitignore，不入 git）。
+1. 来源：上游正式版 `2.6.0`，`scripts/fetch-ipatool.ps1` 下载 `amd64`/`arm64` tar.gz、校验 SHA-256 与 PE 头，写入 `src-tauri/binaries/ipatool-<target-triple>.exe`（Tauri sidecar 命名，gitignore，不入 git）。
 2. `tauri.conf.json` 以 `bundle.externalBin` 声明；`tauri build` 会将其复制到输出目录为 `ipatool.exe`，MSIX 打包脚本原样收进包内。
 3. 路径解析（`src-tauri/src/resolver.rs`）：自定义路径（flavor=custom 且文件存在）> 应用同目录 `ipatool.exe` > PATH 兜底。
-4. 自定义 ipatool 要求版本 ≥ `2.5.0`（已购买功能依赖 2.5.0 引入的新逻辑）。
+4. 自定义 ipatool 要求版本 ≥ `2.5.0`（已购买功能依赖 2.5.0 引入的新逻辑）；macOS 平台需要 `--platform` 参数（2.6.0 新增），自定义 2.5.0 时 macOS 相关能力不可用（同步的 macOS 轮失败会被跳过并记入日志）。
 
 ## 7. ipatool 命令参考
 
@@ -174,7 +174,7 @@ node scripts/eval-webview.mjs 9224 "window.__TAURI_INTERNALS__.invoke('settings_
 
 ## 10. 数据库
 
-1. `PurchasedAppDb.db`（SQLite，core rusqlite 承担）存放已购记录（bundleId + 账户 + 状态统一 "purchased"）与 `SyncState` 表（上次成功/尝试同步时间）；schema `user_version` 2。
+1. `PurchasedAppDb.db`（SQLite，core rusqlite 承担）存放已购记录（bundleId + 账户 + 平台，状态统一 "purchased"）与 `SyncState` 表（上次成功/尝试同步时间）；schema `user_version` 3（2→3 加 `Platform` 列，历史记录归 ios；同一 bundleId 在 iOS/Mac 商店是不同条目）。
 2. 路径：Tauri `app_data_dir`（`%APPDATA%\com.ipabuyer.app\`）；packaged 运行时经 MSIX 虚拟化重定向到包容器，读写一致。
 3. `src-tauri/src/state.rs` 的 `AppState::new` 在 setup 时打开，句柄以 Mutex 串行化。
 4. 旧版 WinUI3 的数据库在 `%AppData%\Local\Packages\IPAbuyer.IPAbuyer_kr1hdvrv6tpd0\LocalState\PurchasedAppDb.db`，schema 相同可复制导入（设置页提供导入提示，待实现）。
@@ -197,14 +197,14 @@ node scripts/eval-webview.mjs 9224 "window.__TAURI_INTERNALS__.invoke('settings_
 主页（搜索结果列表、筛选、下载进度环）**已实现（M3）**：
 
 1. 标题栏搜索框（仅主页可用）经 iTunes Search API 搜索：`https://itunes.apple.com/search?term=名称&entity=software&limit=200&country=国家代码`。
-2. 筛选：全部 / 未购买 / 已购买 + 开发者下拉筛选；空结果显示空状态提示。
-3. 结果卡片（SettingsCard 风格）：App 图标、名称、开发者、版本号、购买状态文字（已购买绿 / 无法购买红）、操作按钮（未购→购买；已购→下载；无法购买→禁用）、三点菜单（标记已购/未购、复制名称/ID、在 App Store 打开）。
+2. 筛选：全部 / 未购买 / 已购买（工具栏分段按钮）+ 平台（全部/iOS/iPad/Mac）与开发者（**独立筛选窗口**，label `filter`，"筛选"按钮打开，行为仿日志窗口：用户关闭即销毁、按钮再开重建；筛选选择与开发者选项保存在后端 AppState，经 `filter-changed` 事件同步两个窗口，开发者选项随每次搜索刷新、失效选择自动回退）；空结果显示空状态提示。
+3. 结果卡片（SettingsCard 风格）：App 图标、名称、开发者、版本号、平台徽标（仅 macOS 条目显示 "Mac"）、购买状态文字（已购买绿 / 无法购买红）、操作按钮（未购→购买；已购→下载；无法购买→禁用）、三点菜单（标记已购/未购、复制名称/ID、在 App Store 打开）。
 4. 购买状态来自数据库合成；"无法购买"由价格推导不入库；`alreadyOwned` 或 `failed to purchase item with param 'STDQ'` 直接标记已购买不弹窗。
 5. 搜索与购买经 core（`core::appcatalog` / purchase 流程）实现；底部 InfoBar → shadcn Alert。
 
 ## 13. ipatool 页
 
-**已实现（M4）**：内置版本卡片（release@2.5.0、"当前使用"徽章、导出）、自定义 ipatool.exe 卡片（选择/使用/删除插槽）、版本要求卡片（≥2.5.0）、详细日志开关（`detailedIpatoolLog`）、清空 ipatool 数据（`~/.ipatool/`）、majd/ipatool 仓库链接。来源选择 `ipatoolFlavor`（main/custom）与 `customIpatoolPath` 已在配置结构中就位。
+**已实现（M4）**：内置版本卡片（release@2.6.0、"当前使用"徽章、导出）、自定义 ipatool.exe 卡片（选择/使用/删除插槽）、版本要求卡片（≥2.5.0）、详细日志开关（`detailedIpatoolLog`）、清空 ipatool 数据（`~/.ipatool/`）、majd/ipatool 仓库链接。来源选择 `ipatoolFlavor`（main/custom）与 `customIpatoolPath` 已在配置结构中就位。
 
 ## 14. 日志系统
 
@@ -212,8 +212,8 @@ node scripts/eval-webview.mjs 9224 "window.__TAURI_INTERNALS__.invoke('settings_
 
 1. 展示形式为**独立日志窗口**（对齐 WinUI3 版 LogViewerWindow）：Rust 命令 `logs_show_window`/`logs_hide_window` 按需创建/隐藏（label `log`，用户关闭即销毁、再开重建并快照回填）；前端 `main.tsx` 按窗口标签分流渲染 `LogWindow`。
 2. 格式 `[日期时间] [INFO] 内容`；等级着色；ipatool 输出的等级标修订为 `[ipatool]`；等宽字体深色底。
-3. 执行购买、登录、查询登录状态、下载、终止下载、刷新已购列表时自动展开。
-4. 数据链路：core 命令的日志回调 → 后端 UiLogStore（环形缓冲 1000 行）→ `emit("log-append")` → 前端 store；详细日志开关（`detailedIpatoolLog`）开启时记录命令与完整输出。
+3. 日志窗口自动展开：主页点击下载、设置页开始/取消同步（刷新已购列表）时自动打开；购买经 toast 反馈不开窗（前端测试约定），账户页提供手动日志按钮。
+4. 数据链路：core 命令的日志回调 → 后端 UiLogStore（环形缓冲 1000 行）→ `emit("log-append")` → 前端 store；详细日志开关（`detailedIpatoolLog`）开启时记录命令与完整输出，`$` 前缀为输入命令（敏感值遮蔽）、`<` 前缀为 ipatool 输出行。
 5. 长任务（队列、同步）由后端 tokio 任务 200ms 轮询状态并 emit 事件，前端不自行轮询。
 
 ## 15. 设置页
@@ -232,11 +232,11 @@ node scripts/eval-webview.mjs 9224 "window.__TAURI_INTERNALS__.invoke('settings_
 | `ipatool_flavor` | ipatool 来源：`main` / `custom` | `main` |
 | `custom_ipatool_path` | 自定义 ipatool.exe 路径 | null |
 
-显示语言切换即时生效（`i18n.changeLanguage`），无需重启；启动时由 `initialization_script` 注入 `window.__IPABUYER_LANG__` 保证首帧正确（见 `src-tauri/src/lib.rs` 与 `src/i18n.ts`）。
+显示语言切换即时生效（后端保存配置并广播 `language-changed`，所有窗口——主窗口/日志/筛选——各自 `changeLanguage`，"auto" 由各窗口按系统语言解析），无需重启；启动时由 `initialization_script` 注入 `window.__IPABUYER_LANG__` 保证首帧正确（见 `src-tauri/src/lib.rs` 与 `src/i18n.ts`）。
 
 ## 16. 搜索功能
 
-见[主页与购买状态](#12-主页与购买状态)。搜索请求、响应解析与已购状态合成由 core 承担（`core::appcatalog::catalog_service::search_catalog`）；国家码经 `normalize_country_code` 归一化（非法回退 `cn`），合法性由 `storefront::contains` 校验。
+见[主页与购买状态](#12-主页与购买状态)。搜索请求、响应解析与已购状态合成由 core 承担（`core::appcatalog::catalog_service::search_catalog`）；同时检索 iOS（`entity=software`）、iPad（`entity=iPadSoftware`）与 Mac（`entity=macSoftware`）三个 App Store 并按此顺序合并（tvOS/visionOS 因公开搜索 API 无数据源暂不支持），国家码经 `normalize_country_code` 归一化（非法回退 `cn`），合法性由 `storefront::contains` 校验；已购状态按「平台:bundleId」组合键合成。
 
 ## 17. 下载队列
 
@@ -253,10 +253,11 @@ node scripts/eval-webview.mjs 9224 "window.__TAURI_INTERNALS__.invoke('settings_
 2. i18next 配置：`keySeparator: false`、`nsSeparator: false`（键原样查找）、`escapeValue: false`；占位符为 i18next 插值 `{{0}}`（与 core 消息位置参数数组契约一致，渲染时传 `{ 0: value }`）。
 3. core 消息（`Message::Key{key,args}` / `NormalizedText::Keyed`）经后端 `JsMessage` 序列化，前端 `useRenderMessage()`（`src/lib/messages.ts`）渲染；无对应键时 i18next 回退显示键名。
 4. 新增 UI 文本必须同时在两个语言 JSON 中补键；resw 重迁移需重跑脚本（会覆盖手改内容，迁移后手改应落到 JSON）。
+5. **后端自有文案（Fluent）**：Rust 侧生成的用户可见文本（命令错误、子窗口标题）由 Fluent 本地化——资源 `src-tauri/locales/{zh-Hans,en-US}/main.ftl`，实现 `src-tauri/src/i18n.rs` 的 `Lang`（语言偏好同 settings 的 display_language，auto 按系统 locale 解析，缺失键回退 zh-Hans）。core 消息仍为键名由前端渲染，两者键空间独立；命令错误以原文（已本地化）返回前端展示。
 
 ## 19. 测试
 
-1. Rust：`cd src-tauri && cargo test`——core 并入的 119 项 + 应用层（配置序列化兼容、密钥轮换默认值、日志缓冲环形上限、消息序列化、DTO 映射等）共 153 项；修改 core 或命令层必须保证通过。
+1. Rust：`cd src-tauri && cargo test`——core 并入的 119 项 + 应用层（配置序列化兼容、密钥轮换默认值、日志缓冲环形上限与序号游标、平台维度、消息序列化、DTO 映射等）共 167 项；修改 core 或命令层必须保证通过。
 2. 前端：`pnpm test`（Vitest 5 + jsdom，`pnpm test:watch` 常驻）——覆盖 lib/ 纯函数（价格/状态策略、URL 拼装、cn）、stores（会话/搜索/队列/日志，mock Tauri invoke 与 event）、消息渲染 hook（{{0}} 插值与键名回退），以及组件与页面测试（SettingsCard/AppSidebar 结构与路由、日志窗口、账户页表单校验与日志按钮、主页卡片渲染/筛选/购买动作与不开窗约定）。新增 UI 文本逻辑或组件时应配套用例。
 3. 命令层行为另以 CDP 脚本（eval-webview/screenshot/watch-webview-errors）+ 实机验证兜底。
 3. 新增可测纯逻辑（如解析、策略）应补单元测试。

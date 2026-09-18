@@ -55,6 +55,9 @@ export type Storefront = readonly [code: string, name: string];
 
 export type PurchaseStatus = "purchased" | "not_purchased";
 
+/** App Store 平台：iOS（缺省）、iPadOS 与 Mac App Store。 */
+export type AppPlatform = "ios" | "ipad" | "macos";
+
 export interface SearchResultItem {
   bundleId: string;
   id: string | null;
@@ -63,6 +66,7 @@ export interface SearchResultItem {
   artworkUrl: string | null;
   price: string;
   version: string | null;
+  platform: AppPlatform;
   purchased: string;
 }
 
@@ -83,6 +87,7 @@ export type QueueItemStatus = "Pending" | "Downloading" | "Success" | "Failed" |
 
 export interface QueueItem {
   bundleId: string;
+  platform: AppPlatform;
   appId: string;
   name: string;
   developer: string;
@@ -105,3 +110,10 @@ export interface LogEntry {
 }
 
 export type QueueFilter = "all" | "not_purchased" | "purchased";
+
+/** 主页筛选（筛选窗口与主窗口共享；developers 为当前搜索的开发者选项）。 */
+export interface FilterSelection {
+  platform: "all" | AppPlatform;
+  developer: string;
+  developers: string[];
+}
