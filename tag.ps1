@@ -1,6 +1,6 @@
 Set-Location $PSScriptRoot
 
-$versionJson = pnpm pkg get version
+$versionJson = pnpm pkg get version --json
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 try {
