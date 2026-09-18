@@ -44,8 +44,14 @@ pub fn display_name(platform: &str) -> &'static str {
 }
 
 /// 已购记录/查找的组合键：同一 bundleId 在不同商店是不同条目。
+/// bundleId 统一小写——数据库按小写归一存储（trim + lowercase），
+/// 而 iTunes 搜索返回的 bundleId 大小写不定（如 com.apple.TestFlight）。
 pub fn purchase_key(platform: &str, bundle_id: &str) -> String {
-    format!("{}:{}", normalize(platform), bundle_id.trim())
+    format!(
+        "{}:{}",
+        normalize(platform),
+        bundle_id.trim().to_lowercase()
+    )
 }
 
 #[cfg(test)]
@@ -77,10 +83,15 @@ mod tests {
     }
 
     #[test]
-    fn purchase_key_distinguishes_platforms() {
+    fn purchase_key_distinguishes_platforms_and_normalizes_case() {
         assert_eq!(purchase_key(IOS, "com.a"), "ios:com.a");
         assert_eq!(purchase_key("ipad", " com.a "), "ipad:com.a");
         assert_ne!(purchase_key(IOS, "com.a"), purchase_key(MACOS, "com.a"));
         assert_ne!(purchase_key(IOS, "com.a"), purchase_key(IPAD, "com.a"));
+        // DB 存储小写归一，搜索返回的 bundleId 大小写不定，必须按小写匹配
+        assert_eq!(
+            purchase_key(IOS, "com.apple.TestFlight"),
+            purchase_key(IOS, "com.apple.testflight")
+        );
     }
 }
