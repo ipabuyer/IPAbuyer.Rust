@@ -26,6 +26,8 @@ pub async fn logs_show_window(
             .title(title)
             .inner_size(760.0, 520.0)
             .min_inner_size(480.0, 320.0)
+            // 日志内容恒为深色底（zinc-950），建窗即用深色避免白底闪现
+            .background_color(crate::system_theme::window_background_color(true))
             .build()
             .map(|_| ())
             .map_err(|e| e.to_string()),

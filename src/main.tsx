@@ -15,6 +15,11 @@ import "./index.css";
 // ContextMenu 自行处理（触发区事件已自阻止默认行为）
 window.addEventListener("contextmenu", (e) => e.preventDefault());
 
+// 首绘主题已由 index.html 内联脚本应用到文档；此处同步镜像到 store
+// （sonner 等取用），之后仍由 system-theme 事件与 system_theme 命令兜底
+const bootTheme = (window as { __IPABUYER_THEME__?: "light" | "dark" }).__IPABUYER_THEME__;
+if (bootTheme === "dark" || bootTheme === "light") applySystemTheme(bootTheme);
+
 // 跟随系统深浅主题：WebView2 的 prefers-color-scheme 不保证随系统实时
 // 更新，由后端轮询注册表并 emit system-theme 事件桥接。挂载后延迟一拍
 // 应用初始值，避免被 next-themes 的挂载效果覆盖；此后仅事件驱动切换。

@@ -6,6 +6,7 @@ import {
   Download,
   Ellipsis,
   ExternalLink,
+  Info,
   Loader2,
   ListFilter,
   ScrollText,
@@ -30,7 +31,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SettingsCard } from "@/components/settings-card";
 import { api } from "@/lib/api";
-import { appStoreUrl, displayStatus, filterResults } from "@/lib/status";
+import { appStoreUrl, deriveUnpurchasedStatus, displayStatus, filterResults } from "@/lib/status";
 import type { SearchResultItem } from "@/lib/types";
 import { useSearch } from "@/stores/search";
 import { useQueue } from "@/stores/queue";
@@ -196,7 +197,8 @@ export function HomePage() {
   async function handleUnmark(item: SearchResultItem) {
     try {
       await api.unmark(item.bundleId, item.platform);
-      markLocal(item, "not_purchased");
+      // 取消标记后状态按价格重新推导：付费 App 恢复"无法购买"而非"未购买"
+      markLocal(item, deriveUnpurchasedStatus(item.price));
     } catch (error) {
       toast.error(String(error));
     }
@@ -326,7 +328,7 @@ function AppCard({
     ),
   );
   const isPurchased = status === "purchased";
-  const isBlocked = status === "purchase_blocked";
+  const isBlocked = status === "blocked";
 
   const statusText = queueItem
     ? t(`DownloadQueue/Status/${queueItem.status}`)
@@ -438,28 +440,27 @@ function AppCard({
                     : t("MainPage/PurchaseBlockedReason/Unknown")
                 }
               >
-                <Ellipsis className="size-4 text-muted-foreground" />
+                {/* 信息图标：悬停查看不可购买原因；勿用三点（与操作菜单撞形） */}
+                <Info className="size-4 text-muted-foreground" />
               </span>
             )}
-            {!isBlocked && (
-              <Button
-                size="sm"
-                variant={isPurchased ? "outline" : "default"}
-                disabled={busy || queueItem?.status === "Downloading"}
-                onClick={isPurchased ? onDownload : onPurchase}
-              >
-                {busy ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : isPurchased ? (
-                  <Download className="size-4" />
-                ) : (
-                  <ShoppingCart className="size-4" />
-                )}
-                {isPurchased
-                  ? t("MainPage/Action/AddToQueueButton.Content")
-                  : t("MainPage/Context/PurchaseItem.Text")}
-              </Button>
-            )}
+            <Button
+              size="sm"
+              variant={isPurchased ? "outline" : "default"}
+              disabled={busy || isBlocked || queueItem?.status === "Downloading"}
+              onClick={isPurchased ? onDownload : onPurchase}
+            >
+              {busy ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : isPurchased ? (
+                <Download className="size-4" />
+              ) : (
+                <ShoppingCart className="size-4" />
+              )}
+              {isPurchased
+                ? t("MainPage/Action/AddToQueueButton.Content")
+                : t("MainPage/Context/PurchaseItem.Text")}
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="size-8">

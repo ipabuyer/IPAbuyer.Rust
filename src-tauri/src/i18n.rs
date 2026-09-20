@@ -1,5 +1,5 @@
 //! 后端 i18n（Fluent）：本地化 Rust 侧自身生成的用户可见文本——命令错误、
-//! 子窗口标题。core 消息保持键名 + 位置参数由前端渲染（DEVELOPMENT.md 18），
+//! 子窗口标题。core 消息保持键名 + 位置参数由前端渲染（references/localization.md），
 //! 不经本模块。
 //!
 //! 语言偏好来自 settings 的 display_language（auto 按系统 locale 解析，

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   appStoreUrl,
   collectDevelopers,
+  deriveUnpurchasedStatus,
   displayPrice,
   displayStatus,
   filterResults,
@@ -46,13 +47,24 @@ describe("displayStatus", () => {
 
   it("maps known statuses", () => {
     expect(displayStatus(item("purchased"))).toBe("purchased");
-    expect(displayStatus(item("purchase_blocked"))).toBe("purchase_blocked");
+    expect(displayStatus(item("blocked"))).toBe("blocked");
     expect(displayStatus(item("not_purchased"))).toBe("not_purchased");
   });
 
   it("treats unknown values as not purchased", () => {
     expect(displayStatus(item(""))).toBe("not_purchased");
     expect(displayStatus(item("whatever"))).toBe("not_purchased");
+  });
+});
+
+describe("deriveUnpurchasedStatus", () => {
+  it("mirrors core resolve_unpurchased_status", () => {
+    expect(deriveUnpurchasedStatus("0")).toBe("not_purchased");
+    expect(deriveUnpurchasedStatus("free")).toBe("not_purchased");
+    // 价格未知（空值）与后端一致归为未购买
+    expect(deriveUnpurchasedStatus("")).toBe("not_purchased");
+    expect(deriveUnpurchasedStatus(null)).toBe("not_purchased");
+    expect(deriveUnpurchasedStatus("6.00")).toBe("blocked");
   });
 });
 
@@ -116,7 +128,7 @@ describe("filterResults", () => {
   const results = [
     item({ bundleId: "com.a", purchased: "purchased", developer: "Tencent" }),
     item({ bundleId: "com.b", purchased: "not_purchased", developer: "tencent" }),
-    item({ bundleId: "com.c", purchased: "purchase_blocked", developer: "NetEase" }),
+    item({ bundleId: "com.c", purchased: "blocked", developer: "NetEase" }),
   ];
 
   it("filter all keeps everything", () => {

@@ -41,7 +41,7 @@ impl Default for Config {
             download_directory: None,
             display_language: DISPLAY_LANGUAGE_AUTO.into(),
             detailed_ipatool_log: false,
-            // 产品决策：密钥轮换默认开启（登出自动生成新密钥，见 DEVELOPMENT.md 15）
+            // 产品决策：密钥轮换默认开启（登出自动生成新密钥，见 references/features.md「设置页」）
             passphrase_rotation_enabled: true,
             ipatool_flavor: IPATOOL_FLAVOR_MAIN.into(),
             custom_ipatool_path: None,

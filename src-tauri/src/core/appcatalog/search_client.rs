@@ -2,7 +2,7 @@
 //!
 //! 移植自主仓库 `AppleAppStoreSearchClient`：阻塞式请求（`ureq` + rustls），
 //! 总超时 2 分钟；非 2xx 时错误体优先、键名兜底；请求中途不支持取消
-//! （搜索耗时短，宿主侧以超时兜底，见 DEVELOPMENT.md 5.3）。
+//! （搜索耗时短，宿主侧以超时兜底，见 references/features.md「搜索功能」）。
 
 use std::time::Duration;
 

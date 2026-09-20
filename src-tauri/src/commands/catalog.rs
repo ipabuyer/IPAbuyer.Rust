@@ -133,3 +133,42 @@ pub fn build_developer_options(names: Vec<String>) -> Vec<String> {
 pub fn error_message(text: impl Into<String>) -> JsMessage {
     JsMessage::raw(text)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn developer_options_trim_and_skip_empty() {
+        assert_eq!(
+            build_developer_options(vec!["  Tencent  ".into(), "  ".into(), "".into()]),
+            vec!["Tencent"]
+        );
+    }
+
+    #[test]
+    fn developer_options_dedupe_case_insensitive_keep_first_spelling() {
+        assert_eq!(
+            build_developer_options(vec![
+                "Tencent".into(),
+                "tencent".into(),
+                "TENCENT".into(),
+                "NetEase".into()
+            ]),
+            vec!["Tencent", "NetEase"]
+        );
+    }
+
+    #[test]
+    fn developer_options_keep_occurrence_order() {
+        assert_eq!(
+            build_developer_options(vec!["B".into(), "A".into(), "C".into()]),
+            vec!["B", "A", "C"]
+        );
+    }
+
+    #[test]
+    fn developer_options_empty_input() {
+        assert!(build_developer_options(Vec::new()).is_empty());
+    }
+}

@@ -4,6 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>IPAbuyer</title>
+    <script>
+      // 首绘前应用系统主题：__IPABUYER_THEME__ 由 Rust initialization_script
+      // 在文档创建时注入（浅色/未注入时默认浅色），避免深色模式下
+      // bundle 加载期间的白屏闪烁
+      (function () {
+        var dark = window.__IPABUYER_THEME__ === "dark";
+        document.documentElement.classList.toggle("dark", dark);
+        document.documentElement.style.colorScheme = dark ? "dark" : "light";
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

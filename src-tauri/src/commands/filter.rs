@@ -116,13 +116,18 @@ pub async fn filter_show_window(
             let _ = window.set_focus();
             Ok(())
         }
-        None => WebviewWindowBuilder::new(&app, FILTER_WINDOW_LABEL, WebviewUrl::App("index.html".into()))
-            .title(title)
-            .inner_size(340.0, 280.0)
-            .resizable(false)
-            .build()
-            .map(|_| ())
-            .map_err(|e| e.to_string()),
+        None => {
+            // 底色跟随系统主题，避免深色模式下建窗白底闪现
+            let dark = crate::system_theme::current_system_theme() == "dark";
+            WebviewWindowBuilder::new(&app, FILTER_WINDOW_LABEL, WebviewUrl::App("index.html".into()))
+                .title(title)
+                .inner_size(340.0, 280.0)
+                .resizable(false)
+                .background_color(crate::system_theme::window_background_color(dark))
+                .build()
+                .map(|_| ())
+                .map_err(|e| e.to_string())
+        }
     }
 }
 

@@ -71,13 +71,32 @@ pub fn current_system_theme() -> &'static str {
     theme_name(apps_use_light_theme().unwrap_or(true))
 }
 
+/// 窗口/WebView 底色：深色模式（或日志窗口等恒深色内容）用深色，
+/// 避免页面内容首绘前的白底闪眼；与 index.css 的 --background 对应。
+pub fn window_background_color(dark: bool) -> tauri::window::Color {
+    if dark {
+        tauri::window::Color(10, 10, 10, 255)
+    } else {
+        tauri::window::Color(255, 255, 255, 255)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::theme_name;
+    use super::{theme_name, window_background_color};
 
     #[test]
     fn theme_name_maps_light_flag() {
         assert_eq!(theme_name(true), "light");
         assert_eq!(theme_name(false), "dark");
+    }
+
+    #[test]
+    fn window_background_color_follows_theme() {
+        let dark = window_background_color(true);
+        let light = window_background_color(false);
+        assert_ne!(dark.0, light.0);
+        assert_eq!(dark.3, 255);
+        assert_eq!(light.0, 255);
     }
 }
