@@ -229,6 +229,24 @@ describe("HomePage", () => {
     expect(screen.getByText("iPad")).toBeTruthy();
   });
 
+  it("paid app (blocked) shows 无法购买 without a purchase action", async () => {
+    // 回归：core 的无法购买 token 是 "blocked"（status_policy），不是 "purchase_blocked"
+    const paidResult = { ...result("com.paid", "blocked", "NetEase"), price: "6.00" };
+    useSearch.setState({
+      query: "测试",
+      searching: false,
+      lastSearchEmpty: false,
+      results: [...useSearch.getState().results, paidResult],
+    });
+
+    const card = await screen.findByText("应用-com.paid");
+    expect(screen.getByText("无法购买")).toBeTruthy();
+    const cardEl = card.closest("[data-slot=card]")!;
+    expect(
+      [...cardEl.querySelectorAll("button")].some((b) => b.textContent?.includes("购买")),
+    ).toBe(false);
+  });
+
   it("filter button opens the independent filter window", async () => {
     fireEvent.click(screen.getByRole("button", { name: "筛选" }));
     await vi.waitFor(() => expect(filterShowMock).toHaveBeenCalled());
