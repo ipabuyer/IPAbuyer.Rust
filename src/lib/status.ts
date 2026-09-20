@@ -2,7 +2,7 @@ import type { AppPlatform, QueueFilter, SearchResultItem } from "./types";
 
 // 前端展示策略（复刻 core purchases/status_policy，仅供渲染；执行仍以后端校验为准）
 
-export type DisplayStatus = "purchased" | "not_purchased" | "purchase_blocked";
+export type DisplayStatus = "purchased" | "not_purchased" | "blocked";
 
 export function isFreePrice(price: string | undefined | null): boolean {
   if (!price) return false;
@@ -17,9 +17,10 @@ export function displayPrice(price: string): string {
   return isFreePrice(price) ? "free" : price;
 }
 
+// 购买状态 token 与 core status_policy 对齐：purchased / not_purchased / blocked
 export function displayStatus(item: SearchResultItem): DisplayStatus {
   if (item.purchased === "purchased") return "purchased";
-  if (item.purchased === "purchase_blocked") return "purchase_blocked";
+  if (item.purchased === "blocked") return "blocked";
   return "not_purchased";
 }
 

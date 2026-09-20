@@ -326,7 +326,7 @@ function AppCard({
     ),
   );
   const isPurchased = status === "purchased";
-  const isBlocked = status === "purchase_blocked";
+  const isBlocked = status === "blocked";
 
   const statusText = queueItem
     ? t(`DownloadQueue/Status/${queueItem.status}`)
