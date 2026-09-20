@@ -1,0 +1,5 @@
+# cargo update 跟随最新版本：忽略依赖 MSRV 高于 rust-version 的限制。
+# 本项目实际以最新 stable 工具链构建（CI 与本机），发布的锁文件本就要求
+# Rust ≥1.88；不加此配置时 cargo update 会把依赖压回 rust-version 上限。
+[resolver]
+incompatible-rust-versions = "allow"

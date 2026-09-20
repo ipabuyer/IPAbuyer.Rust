@@ -3,7 +3,7 @@ name = "ipabuyer"
 version = "2026.9.17"
 description = "IPAbuyer - Tauri 2 build for Microsoft Store"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.89"
 
 [[bin]]
 name = "IPAbuyer"
