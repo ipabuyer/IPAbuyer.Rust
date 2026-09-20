@@ -215,3 +215,51 @@ pub fn logs_clear(state: State<'_, AppState>) {
 pub fn logs_snapshot(state: State<'_, AppState>) -> Vec<LogEntryDto> {
     state.log_buffer.snapshot_all()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn item(status: crate::core::downloads::DownloadQueueStatus) -> DownloadQueueItem {
+        let mut item = DownloadQueueItem::new("com.example.app", "ios");
+        item.status = status;
+        item
+    }
+
+    #[test]
+    fn status_name_covers_all_variants() {
+        use crate::core::downloads::DownloadQueueStatus as S;
+        assert_eq!(status_name(S::Pending), "Pending");
+        assert_eq!(status_name(S::Downloading), "Downloading");
+        assert_eq!(status_name(S::Success), "Success");
+        assert_eq!(status_name(S::Failed), "Failed");
+        assert_eq!(status_name(S::Canceled), "Canceled");
+    }
+
+    #[test]
+    fn item_dto_maps_fields_and_serializes_camel_case() {
+        let mut queue_item = DownloadQueueItem::new("com.example.app", "macos");
+        queue_item.app_id = "42".into();
+        queue_item.name = "Example".into();
+        queue_item.developer = "Dev".into();
+        queue_item.version = "1.2.3".into();
+        queue_item.price = "free".into();
+        queue_item.artwork_url = "https://a/42.png".into();
+        queue_item.status = crate::core::downloads::DownloadQueueStatus::Success;
+        queue_item.last_message = "done".into();
+
+        let dto = item_dto(&queue_item);
+        assert_eq!(dto.bundle_id, "com.example.app");
+        assert_eq!(dto.platform, "macos");
+        assert_eq!(dto.app_id, "42");
+        assert_eq!(dto.status, "Success");
+        assert_eq!(dto.last_message, "done");
+
+        // serde 对前端的字段名为 camelCase
+        let json = serde_json::to_value(&dto).unwrap();
+        assert!(json.get("bundleId").is_some());
+        assert!(json.get("artworkUrl").is_some());
+        assert!(json.get("lastMessage").is_some());
+        assert!(json.get("bundle_id").is_none());
+    }
+}
