@@ -1,6 +1,6 @@
 //! ipatool 响应解析。
 //!
-//! 移植自主仓库 `IpatoolResponseParser`。按本地化原则（DEVELOPMENT.md 第 9 节），
+//! 移植自主仓库 `IpatoolResponseParser`。按本地化原则（references/localization.md），
 //! 原实现中经资源加载器格式化的可读错误改为返回稳定键名 + 参数
 //! （[`NormalizedText::Keyed`]），由宿主用 `.resw` 渲染。
 

@@ -1,7 +1,7 @@
 //! 购买状态策略。
 //!
 //! 移植自主仓库 `PurchaseStatusPolicy` 的纯逻辑部分。与 C# 版的关键差异：
-//! C# 版状态值是本地化显示字符串，本模块按本地化原则（DEVELOPMENT.md 第 9 节）
+//! C# 版状态值是本地化显示字符串，本模块按本地化原则（references/localization.md）
 //! 改用规范 token（`purchased` / `not_purchased` / `blocked`），宿主负责映射为
 //! `.resw` 显示文案；价格中的本地化"免费"文案同样由宿主归一后传入。
 
