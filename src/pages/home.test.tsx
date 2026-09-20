@@ -245,6 +245,9 @@ describe("HomePage", () => {
     expect(
       [...cardEl.querySelectorAll("button")].some((b) => b.textContent?.includes("购买")),
     ).toBe(false);
+    // 不可购买原因用信息图标提示（悬停查看），不与三点操作菜单撞形
+    expect(cardEl.querySelector("svg.lucide-info")).toBeTruthy();
+    expect(cardEl.querySelectorAll("svg.lucide-ellipsis").length).toBe(1);
   });
 
   it("filter button opens the independent filter window", async () => {

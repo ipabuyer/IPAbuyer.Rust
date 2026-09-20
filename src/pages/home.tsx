@@ -6,6 +6,7 @@ import {
   Download,
   Ellipsis,
   ExternalLink,
+  Info,
   Loader2,
   ListFilter,
   ScrollText,
@@ -438,7 +439,8 @@ function AppCard({
                     : t("MainPage/PurchaseBlockedReason/Unknown")
                 }
               >
-                <Ellipsis className="size-4 text-muted-foreground" />
+                {/* 信息图标：悬停查看不可购买原因；勿用三点（与操作菜单撞形） */}
+                <Info className="size-4 text-muted-foreground" />
               </span>
             )}
             {!isBlocked && (
