@@ -12,3 +12,4 @@
 6. 窗口权限集中在 `src-tauri/capabilities/default.json`；新增插件能力需同步更新。
 7. 业务组件 `SettingsCard`（`src/components/settings-card.tsx`）对应 WinUI3 CommunityToolkit SettingsCard：图标 + 标题/描述 + 右侧操作区。
 8. 窗口几何（大小/位置/最大化）由 tauri-plugin-window-state 持久化至 `app_config_dir/.window-state.json`（物理像素）；启动时 `fit_main_window`（`src-tauri/src/lib.rs`）将恢复的几何钳制在显示器工作区（去除任务栏）内，首次启动在工作区居中。
+9. 窗口生命周期：**关闭主窗口即退出应用**（`lib.rs` 的 `on_window_event` 拦截 main 窗口 CloseRequested 后 `exit(0)`），日志/筛选子窗口随进程一起结束，无需逐个关闭；子窗口自身的叉号仍是各自关闭（销毁，再开重建）。

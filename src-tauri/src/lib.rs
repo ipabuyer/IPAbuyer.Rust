@@ -92,6 +92,16 @@ pub fn run() {
             commands::auth::auth_logout,
             commands::auth::auth_info,
         ])
+        .on_window_event(|window, event| {
+            // 关闭主窗口即退出应用：日志/筛选子窗口随进程一起结束，
+            // 不必逐个手动关闭。exit(0) 走正常退出流程，window-state 插件
+            // 在 RunEvent::Exit 时保存窗口几何。
+            if window.label() == "main" {
+                if let tauri::WindowEvent::CloseRequested { .. } = event {
+                    window.app_handle().exit(0);
+                }
+            }
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
