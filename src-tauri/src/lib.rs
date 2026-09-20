@@ -74,6 +74,8 @@ pub fn run() {
             commands::purchases::purchase,
             commands::purchases::purchases_mark,
             commands::purchases::purchases_unmark,
+            commands::purchases::purchases_total_count,
+            commands::purchases::purchases_clear,
             commands::queue::queue_add,
             commands::queue::queue_start,
             commands::queue::queue_status,

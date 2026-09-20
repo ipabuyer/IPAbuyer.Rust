@@ -44,6 +44,9 @@ export function SettingsPage() {
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [legacyExists, setLegacyExists] = useState(false);
+  const [clearOpen, setClearOpen] = useState(false);
+  const [clearTotal, setClearTotal] = useState<number | null>(null);
+  const [clearBusy, setClearBusy] = useState(false);
 
   useEffect(() => {
     void api.getSettings().then(setConfig);
@@ -155,6 +158,29 @@ export function SettingsPage() {
       toast.success(t("Settings/Database/LegacyImport/SuccessMessage"));
     } catch (error) {
       toast.error(t("Settings/Database/LegacyImport/FailMessage", { 0: String(error) }));
+    }
+  }
+
+  // 清空本地购买记录：打开确认框时取当前记录数；确认后清空并回报前后条数
+  function openClearDialog() {
+    setClearTotal(null);
+    setClearOpen(true);
+    void api
+      .purchasesTotalCount()
+      .then(setClearTotal)
+      .catch(() => setClearTotal(null));
+  }
+
+  async function handleClearDatabase() {
+    setClearBusy(true);
+    try {
+      const [before, after] = await api.purchasesClear();
+      toast.success(t("Settings/Database/Clear/SuccessMessage", { 0: "\n", 1: before, 2: after }));
+      setClearOpen(false);
+    } catch (error) {
+      toast.error(t("Settings/Database/Clear/FailMessage", { 0: String(error) }));
+    } finally {
+      setClearBusy(false);
     }
   }
 
@@ -273,6 +299,16 @@ export function SettingsPage() {
           </Button>
         </SettingsCard>
 
+        <SettingsCard
+          icon={Database}
+          header={t("Settings/Card/ClearLocalDatabase.Header")}
+          description={t("Settings/Card/ClearLocalDatabase.Description")}
+        >
+          <Button variant="outline" size="sm" onClick={openClearDialog}>
+            {t("Settings/Button/ClearLocalDatabase.Content")}
+          </Button>
+        </SettingsCard>
+
         {legacyExists && config?.legacyDbImported !== true && (
           <SettingsCard
             icon={Database}
@@ -321,6 +357,34 @@ export function SettingsPage() {
           });
         }}
       />
+
+      {/* 清空本地购买记录确认（含当前记录数，操作不可恢复） */}
+      <Dialog open={clearOpen} onOpenChange={setClearOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("Settings/Dialog/ConfirmAction/Title")}</DialogTitle>
+          </DialogHeader>
+          <p className="whitespace-pre-line text-sm text-muted-foreground">
+            {t("Settings/Database/Clear/ConfirmMessage", {
+              0: "\n",
+              1: clearTotal ?? "…",
+            })}
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setClearOpen(false)}>
+              {t("Settings/Dialog/ConfirmAction/Close")}
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={clearBusy || clearTotal === null}
+              onClick={() => void handleClearDatabase()}
+            >
+              {clearBusy ? <Loader2 className="size-4 animate-spin" /> : null}
+              {t("Settings/Dialog/ConfirmAction/Primary")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
