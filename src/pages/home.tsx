@@ -444,25 +444,23 @@ function AppCard({
                 <Info className="size-4 text-muted-foreground" />
               </span>
             )}
-            {!isBlocked && (
-              <Button
-                size="sm"
-                variant={isPurchased ? "outline" : "default"}
-                disabled={busy || queueItem?.status === "Downloading"}
-                onClick={isPurchased ? onDownload : onPurchase}
-              >
-                {busy ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : isPurchased ? (
-                  <Download className="size-4" />
-                ) : (
-                  <ShoppingCart className="size-4" />
-                )}
-                {isPurchased
-                  ? t("MainPage/Action/AddToQueueButton.Content")
-                  : t("MainPage/Context/PurchaseItem.Text")}
-              </Button>
-            )}
+            <Button
+              size="sm"
+              variant={isPurchased ? "outline" : "default"}
+              disabled={busy || isBlocked || queueItem?.status === "Downloading"}
+              onClick={isPurchased ? onDownload : onPurchase}
+            >
+              {busy ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : isPurchased ? (
+                <Download className="size-4" />
+              ) : (
+                <ShoppingCart className="size-4" />
+              )}
+              {isPurchased
+                ? t("MainPage/Action/AddToQueueButton.Content")
+                : t("MainPage/Context/PurchaseItem.Text")}
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="size-8">

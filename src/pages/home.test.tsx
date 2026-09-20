@@ -229,7 +229,7 @@ describe("HomePage", () => {
     expect(screen.getByText("iPad")).toBeTruthy();
   });
 
-  it("paid app (blocked) shows 无法购买 without a purchase action", async () => {
+  it("paid app (blocked) shows 无法购买 with a disabled purchase action", async () => {
     // 回归：core 的无法购买 token 是 "blocked"（status_policy），不是 "purchase_blocked"
     const paidResult = { ...result("com.paid", "blocked", "NetEase"), price: "6.00" };
     useSearch.setState({
@@ -242,10 +242,12 @@ describe("HomePage", () => {
     const card = await screen.findByText("应用-com.paid");
     expect(screen.getByText("无法购买")).toBeTruthy();
     const cardEl = card.closest("[data-slot=card]")!;
-    expect(
-      [...cardEl.querySelectorAll("button")].some((b) => b.textContent?.includes("购买")),
-    ).toBe(false);
-    // 不可购买原因用信息图标提示（悬停查看），不与三点操作菜单撞形
+    const purchaseButton = [...cardEl.querySelectorAll("button")].find((b) =>
+      b.textContent?.includes("购买"),
+    ) as HTMLButtonElement;
+    // 购买按钮保留但禁用（保持与其它卡片排版一致），信息图标悬停查看原因
+    expect(purchaseButton).toBeTruthy();
+    expect(purchaseButton.disabled).toBe(true);
     expect(cardEl.querySelector("svg.lucide-info")).toBeTruthy();
     expect(cardEl.querySelectorAll("svg.lucide-ellipsis").length).toBe(1);
   });
@@ -283,9 +285,10 @@ describe("HomePage", () => {
     await menuItemClick("标记为未购买");
     await vi.waitFor(() => expect(unmarkMock).toHaveBeenCalledWith("com.paid", "ios"));
     await vi.waitFor(() => expect(paidCard().textContent).toContain("无法购买"));
-    expect(
-      [...paidCard().querySelectorAll("button")].some((b) => b.textContent?.includes("购买")),
-    ).toBe(false);
+    const purchaseButton = [...paidCard().querySelectorAll("button")].find((b) =>
+      b.textContent?.includes("购买"),
+    ) as HTMLButtonElement;
+    expect(purchaseButton.disabled).toBe(true);
   });
 
   it("filter button opens the independent filter window", async () => {
