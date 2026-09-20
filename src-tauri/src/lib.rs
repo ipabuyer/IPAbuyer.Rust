@@ -27,6 +27,14 @@ pub fn run() {
     let init_script = initialization_script(display_language.as_deref(), theme);
 
     tauri::Builder::default()
+        // 单实例：二次启动立即退出并唤起已运行实例的主窗口。
+        // 官方要求该插件最先注册，保证其互斥锁先于其它初始化。
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())

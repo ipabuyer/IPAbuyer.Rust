@@ -22,6 +22,7 @@ tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-window-state = "2"
+tauri-plugin-single-instance = "2"
 keyring = "4"
 uuid = { version = "1", features = ["v4"] }
 dirs = "7"
