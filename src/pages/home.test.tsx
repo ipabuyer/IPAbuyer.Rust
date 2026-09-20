@@ -250,6 +250,44 @@ describe("HomePage", () => {
     expect(cardEl.querySelectorAll("svg.lucide-ellipsis").length).toBe(1);
   });
 
+  it("paid app marked then unmarked returns to blocked, not purchasable", async () => {
+    // 回归：付费 App 标记已购再取消，应按价格恢复"无法购买"，而不是卡出购买按钮
+    markMock.mockResolvedValue(undefined);
+    unmarkMock.mockResolvedValue(undefined);
+    const paidResult = { ...result("com.paid", "blocked", "NetEase"), price: "6.00" };
+    useSearch.setState({
+      query: "测试",
+      searching: false,
+      lastSearchEmpty: false,
+      results: [...useSearch.getState().results, paidResult],
+    });
+    await screen.findByText("应用-com.paid");
+
+    function paidCard() {
+      return screen.getByText("应用-com.paid").closest("[data-slot=card]") as HTMLElement;
+    }
+    async function menuItemClick(label: string) {
+      const card = paidCard();
+      const ellipsis = [...card.querySelectorAll("button")].find((b) =>
+        b.querySelector("svg.lucide-ellipsis"),
+      );
+      fireEvent.pointerDown(ellipsis!);
+      fireEvent.click(ellipsis!);
+      fireEvent.click(await screen.findByText(label));
+    }
+
+    await menuItemClick("标记为已购买");
+    await vi.waitFor(() => expect(markMock).toHaveBeenCalledWith("com.paid", "purchased", "ios"));
+    await vi.waitFor(() => expect(paidCard().textContent).toContain("已购买"));
+
+    await menuItemClick("标记为未购买");
+    await vi.waitFor(() => expect(unmarkMock).toHaveBeenCalledWith("com.paid", "ios"));
+    await vi.waitFor(() => expect(paidCard().textContent).toContain("无法购买"));
+    expect(
+      [...paidCard().querySelectorAll("button")].some((b) => b.textContent?.includes("购买")),
+    ).toBe(false);
+  });
+
   it("filter button opens the independent filter window", async () => {
     fireEvent.click(screen.getByRole("button", { name: "筛选" }));
     await vi.waitFor(() => expect(filterShowMock).toHaveBeenCalled());

@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SettingsCard } from "@/components/settings-card";
 import { api } from "@/lib/api";
-import { appStoreUrl, displayStatus, filterResults } from "@/lib/status";
+import { appStoreUrl, deriveUnpurchasedStatus, displayStatus, filterResults } from "@/lib/status";
 import type { SearchResultItem } from "@/lib/types";
 import { useSearch } from "@/stores/search";
 import { useQueue } from "@/stores/queue";
@@ -197,7 +197,8 @@ export function HomePage() {
   async function handleUnmark(item: SearchResultItem) {
     try {
       await api.unmark(item.bundleId, item.platform);
-      markLocal(item, "not_purchased");
+      // 取消标记后状态按价格重新推导：付费 App 恢复"无法购买"而非"未购买"
+      markLocal(item, deriveUnpurchasedStatus(item.price));
     } catch (error) {
       toast.error(String(error));
     }

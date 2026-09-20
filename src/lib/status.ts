@@ -24,6 +24,14 @@ export function displayStatus(item: SearchResultItem): DisplayStatus {
   return "not_purchased";
 }
 
+// 无数据库记录时的价格推导（对齐 core resolve_unpurchased_status）：
+// 免费或价格未知 → 未购买，付费 → 无法购买。取消标记后据此恢复状态，
+// 避免把付费 App 写成未购买而卡出购买按钮。
+export function deriveUnpurchasedStatus(price: string | null | undefined): DisplayStatus {
+  if (!price?.trim()) return "not_purchased";
+  return isFreePrice(price) ? "not_purchased" : "blocked";
+}
+
 // 队列状态 → i18n 键
 export function queueStatusKey(status: string): string {
   return `DownloadQueue/Status/${status}`;

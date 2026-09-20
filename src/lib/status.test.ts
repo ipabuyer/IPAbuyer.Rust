@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   appStoreUrl,
   collectDevelopers,
+  deriveUnpurchasedStatus,
   displayPrice,
   displayStatus,
   filterResults,
@@ -53,6 +54,17 @@ describe("displayStatus", () => {
   it("treats unknown values as not purchased", () => {
     expect(displayStatus(item(""))).toBe("not_purchased");
     expect(displayStatus(item("whatever"))).toBe("not_purchased");
+  });
+});
+
+describe("deriveUnpurchasedStatus", () => {
+  it("mirrors core resolve_unpurchased_status", () => {
+    expect(deriveUnpurchasedStatus("0")).toBe("not_purchased");
+    expect(deriveUnpurchasedStatus("free")).toBe("not_purchased");
+    // 价格未知（空值）与后端一致归为未购买
+    expect(deriveUnpurchasedStatus("")).toBe("not_purchased");
+    expect(deriveUnpurchasedStatus(null)).toBe("not_purchased");
+    expect(deriveUnpurchasedStatus("6.00")).toBe("blocked");
   });
 });
 
