@@ -21,14 +21,10 @@ pub const IDENTIFIER: &str = "com.ipabuyer.app";
 
 /// 构建 Tauri 应用并运行。
 pub fn run() {
-    // 显示语言在 webview 脚本执行前注入，保证首帧即为偏好语言
+    // 显示语言与系统主题在 webview 脚本执行前注入，保证首帧即为偏好语言/主题
     let display_language = state::read_display_language(&state::config_file_path());
-    let init_script = format!(
-        "window.__IPABUYER_LANG__ = {};",
-        display_language
-            .map(|l| format!("{l:?}"))
-            .unwrap_or_else(|| "undefined".into())
-    );
+    let theme = system_theme::current_system_theme();
+    let init_script = initialization_script(display_language.as_deref(), theme);
 
     tauri::Builder::default()
         .plugin(tauri_plugin_window_state::Builder::default().build())
@@ -47,6 +43,7 @@ pub fn run() {
             app.manage(state);
             events::start_polling(app.handle().clone());
             system_theme::start_theme_watcher(app.handle().clone());
+            apply_startup_theme(app.handle());
             fit_main_window(app.handle());
             Ok(())
         })
@@ -97,6 +94,44 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::initialization_script;
+
+    #[test]
+    fn initialization_script_exposes_language_and_theme() {
+        assert_eq!(
+            initialization_script(Some("zh-Hans"), "dark"),
+            "window.__IPABUYER_LANG__ = \"zh-Hans\";\nwindow.__IPABUYER_THEME__ = \"dark\";"
+        );
+        assert_eq!(
+            initialization_script(None, "light"),
+            "window.__IPABUYER_LANG__ = undefined;\nwindow.__IPABUYER_THEME__ = \"light\";"
+        );
+    }
+}
+
+/// webview 初始化脚本：在任何页面脚本（含 index.html 内联脚本）执行前，
+/// 暴露显示语言与系统主题，供首绘前应用（深色模式防白屏，见 index.html）。
+fn initialization_script(display_language: Option<&str>, theme: &str) -> String {
+    let lang = display_language
+        .map(|l| format!("{l:?}"))
+        .unwrap_or_else(|| "undefined".into());
+    format!("window.__IPABUYER_LANG__ = {lang};\nwindow.__IPABUYER_THEME__ = {theme:?};")
+}
+
+/// 启动主题适配：深色模式下主窗口与 WebView 底色先用深色——页面内容
+/// 首绘前 WebView 默认白底，深色模式会白屏闪眼；浅色即默认值无需处理。
+fn apply_startup_theme(app: &tauri::AppHandle) {
+    if system_theme::current_system_theme() != "dark" {
+        return;
+    }
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.set_background_color(Some(system_theme::window_background_color(true)));
+        let _ = window.set_theme(Some(tauri::Theme::Dark));
+    }
 }
 
 /// 主窗口启动适配：钳制在当前显示器工作区（去除任务栏）内。
