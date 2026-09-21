@@ -7,7 +7,7 @@
 ### 前置条件
 
 - Node.js + pnpm（`@tauri-apps/cli`，版本由 `packageManager` 字段固定）
-- Rust (MSVC) 1.77+；arm64 交叉编译需 LLVM/clang 与 VS ARM64 生成工具
+- Rust (MSVC) 1.89+（`Cargo.toml` 的 `rust-version`，随依赖树 MSRV 提升）；arm64 交叉编译需 LLVM/clang 与 VS ARM64 生成工具
 - Windows SDK（`makeappx.exe`，脚本按 `WindowsSdkDir` 环境变量 → Program Files → 各固定盘根目录下的 `Windows Kits\10\bin` 顺序自动查找）
 - 运行时依赖 WebView2 Evergreen Runtime（Win10/11 一般已内置）
 

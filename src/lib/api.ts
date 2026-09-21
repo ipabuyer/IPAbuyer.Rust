@@ -42,6 +42,8 @@ export const api = {
     invoke<void>("purchases_mark", { bundleId, status, platform }),
   unmark: (bundleId: string, platform: AppPlatform) =>
     invoke<void>("purchases_unmark", { bundleId, platform }),
+  purchasesTotalCount: () => invoke<number>("purchases_total_count"),
+  purchasesClear: () => invoke<[number, number]>("purchases_clear"),
   queueAdd: (item: {
     bundleId: string;
     platform: AppPlatform;

@@ -110,4 +110,12 @@ describe("api 封装", () => {
     expect(invokeMock).toHaveBeenCalledWith("sync_cancel");
     expect(invokeMock).toHaveBeenCalledWith("sync_last_time");
   });
+
+  it("清空本地记录命令使用约定命令名", async () => {
+    await api.purchasesTotalCount();
+    await api.purchasesClear();
+
+    expect(invokeMock).toHaveBeenCalledWith("purchases_total_count");
+    expect(invokeMock).toHaveBeenCalledWith("purchases_clear");
+  });
 });

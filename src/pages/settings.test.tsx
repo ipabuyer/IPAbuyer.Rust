@@ -28,6 +28,8 @@ const setPassphraseRotationMock = vi.fn();
 const resetDownloadDirMock = vi.fn();
 const legacyDbImportMock = vi.fn();
 const listStorefrontsMock = vi.fn();
+const purchasesTotalCountMock = vi.fn();
+const purchasesClearMock = vi.fn();
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(async () => null) }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(async () => vi.fn()) }));
@@ -51,6 +53,8 @@ vi.mock("@/lib/api", () => ({
     resetDownloadDirectory: (...a: unknown[]) => resetDownloadDirMock(...(a as [])),
     legacyDbImport: (...a: unknown[]) => legacyDbImportMock(...(a as [])),
     listStorefronts: (...a: unknown[]) => listStorefrontsMock(...(a as [])),
+    purchasesTotalCount: (...a: unknown[]) => purchasesTotalCountMock(...(a as [])),
+    purchasesClear: (...a: unknown[]) => purchasesClearMock(...(a as [])),
   },
 }));
 
@@ -82,6 +86,8 @@ beforeEach(() => {
   resetDownloadDirMock.mockReset().mockResolvedValue(defaultConfig());
   legacyDbImportMock.mockReset().mockResolvedValue(undefined);
   listStorefrontsMock.mockReset().mockResolvedValue([]);
+  purchasesTotalCountMock.mockReset().mockResolvedValue(5);
+  purchasesClearMock.mockReset().mockResolvedValue([5, 0]);
   useSearch.setState({ query: "", results: [], searching: false, lastSearchEmpty: false });
   useSession.getState().reset();
 });
@@ -242,5 +248,42 @@ describe("SettingsPage", () => {
     await renderPage();
 
     expect(screen.queryByText("导入旧版数据")).toBeNull();
+  });
+
+  it("清空本地购买记录：确认对话框显示当前记录数", async () => {
+    purchasesTotalCountMock.mockResolvedValue(5);
+    await renderPage();
+
+    expect(screen.getByText("清空本地购买记录")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "清空记录" }));
+
+    expect(await screen.findByText("确认操作")).toBeTruthy();
+    expect(await screen.findByText(/当前记录数：5 条/)).toBeTruthy();
+    expect(purchasesTotalCountMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("确认清空调用命令并提示前后条数", async () => {
+    purchasesTotalCountMock.mockResolvedValue(5);
+    purchasesClearMock.mockResolvedValue([5, 0]);
+    await renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "清空记录" }));
+    await screen.findByText(/当前记录数：5 条/);
+    fireEvent.click(screen.getByRole("button", { name: "确认清空" }));
+
+    await waitFor(() => expect(purchasesClearMock).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("本地记录已清空。\n清空前：5 条，清空后：0 条。"),
+    );
+  });
+
+  it("清空失败提示错误", async () => {
+    purchasesClearMock.mockRejectedValue("boom");
+    await renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "清空记录" }));
+    fireEvent.click(await screen.findByRole("button", { name: "确认清空" }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("清空失败：boom"));
   });
 });

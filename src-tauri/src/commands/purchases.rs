@@ -209,6 +209,28 @@ pub fn purchases_unmark(
         .map_err(|e| e.to_string())
 }
 
+/// 本地已购记录总数（全部账户；设置页清空确认对话框显示）。
+#[tauri::command]
+pub fn purchases_total_count(state: State<'_, AppState>) -> Result<i64, String> {
+    let lang = crate::i18n::Lang::from_state(&state);
+    let db = state.db.lock().unwrap();
+    let db = db.as_ref().ok_or_else(|| lang.message("error-db-not-initialized"))?;
+    db.get_total_count(None).map_err(|e| e.to_string())
+}
+
+/// 清空本地已购记录（全部账户，不可恢复；设置页"清空本地购买记录"卡片）。
+/// 返回（清空前，清空后）条数，供成功提示展示。
+#[tauri::command]
+pub fn purchases_clear(state: State<'_, AppState>) -> Result<(i64, i64), String> {
+    let lang = crate::i18n::Lang::from_state(&state);
+    let db = state.db.lock().unwrap();
+    let db = db.as_ref().ok_or_else(|| lang.message("error-db-not-initialized"))?;
+    let before = db.get_total_count(None).map_err(|e| e.to_string())?;
+    db.clear_purchased_apps(None).map_err(|e| e.to_string())?;
+    let after = db.get_total_count(None).map_err(|e| e.to_string())?;
+    Ok((before, after))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

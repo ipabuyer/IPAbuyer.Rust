@@ -80,7 +80,8 @@ export function HomePage() {
   const { platform: platformFilter, developer } = useFilter();
 
   const [filter, setFilter] = useState<Filter>("all");
-  const [busyBundle, setBusyBundle] = useState("");
+  // 购买中的卡片集合（平台:bundleId 键控）：多项购买并行时各自转圈
+  const [busyBundles, setBusyBundles] = useState<Set<string>>(new Set());
   const [countryCode, setCountryCode] = useState("cn");
 
   useEffect(() => {
@@ -104,7 +105,8 @@ export function HomePage() {
 
   async function handlePurchase(item: SearchResultItem) {
     if (!requireLogin()) return;
-    setBusyBundle(item.bundleId);
+    const busyKey = `${item.platform}:${item.bundleId.toLowerCase()}`;
+    setBusyBundles((prev) => new Set(prev).add(busyKey));
     const label = appDisplayLabel(item);
     try {
       const result = await api.purchase(
@@ -141,7 +143,11 @@ export function HomePage() {
     } catch (error) {
       toast.error(t("MainPage/Purchase/Failed", { 0: label, 1: String(error) }));
     } finally {
-      setBusyBundle("");
+      setBusyBundles((prev) => {
+        const next = new Set(prev);
+        next.delete(busyKey);
+        return next;
+      });
     }
   }
 
@@ -284,7 +290,7 @@ export function HomePage() {
               <AppCard
                 key={`${item.platform}:${item.bundleId}`}
                 item={item}
-                busy={busyBundle === item.bundleId}
+                busy={busyBundles.has(`${item.platform}:${item.bundleId.toLowerCase()}`)}
                 onPurchase={() => void handlePurchase(item)}
                 onDownload={() => void handleDownload(item)}
                 onMark={() => void handleMark(item, "purchased")}

@@ -291,6 +291,40 @@ describe("HomePage", () => {
     expect(purchaseButton.disabled).toBe(true);
   });
 
+  it("parallel purchases spin all involved buttons", async () => {
+    // 回归：busy 状态曾按单个 bundleId 存储，多项购买并行时只有最后一个转圈
+    useSearch.setState({
+      query: "测试",
+      searching: false,
+      lastSearchEmpty: false,
+      results: [
+        ...useSearch.getState().results,
+        { ...result("com.free2", "not_purchased", "Tencent"), name: "应用-com.free2" },
+      ],
+    });
+    const resolvers: Array<() => void> = [];
+    purchaseMock.mockImplementation(
+      () => new Promise((resolve) => resolvers.push(() => resolve({ bundleId: "", outcome: "Purchased", detail: null }))),
+    );
+
+    await screen.findByText("应用-com.free2");
+    const buyButtons = screen.getAllByRole("button", { name: "购买" });
+    expect(buyButtons.length).toBe(2);
+    fireEvent.click(buyButtons[0]);
+    fireEvent.click(buyButtons[1]);
+
+    await vi.waitFor(() => expect(purchaseMock).toHaveBeenCalledTimes(2));
+    // 两个购买中的按钮都在转圈
+    await vi.waitFor(() =>
+      expect(document.querySelectorAll("svg.animate-spin").length).toBe(2),
+    );
+
+    resolvers.forEach((resolve) => resolve());
+    await vi.waitFor(() =>
+      expect(document.querySelectorAll("svg.animate-spin").length).toBe(0),
+    );
+  });
+
   it("filter button opens the independent filter window", async () => {
     fireEvent.click(screen.getByRole("button", { name: "筛选" }));
     await vi.waitFor(() => expect(filterShowMock).toHaveBeenCalled());
